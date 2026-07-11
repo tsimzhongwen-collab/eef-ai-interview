@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>EEF AI 模拟面签</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">CAMPUS FRANCE · EEF</div>
+        <h1>AI 模拟面签</h1>
+        <p>随机题进入面签。先听问题，再用法语回答。AI 只追问，不中途纠错。</p>
+      </div>
+      <div class="counter" id="turnCounter">0 / 8</div>
+    </header>
+
+    <section class="stage">
+      <div class="category" id="category">等待开始</div>
+
+      <div id="emptyState" class="empty">
+        <div class="seal">EEF</div>
+        <h2>准备开始一轮模拟面签</h2>
+        <p>系统会随机抽取一个问题。建议完成 5–8 轮后再查看中文复盘。</p>
+      </div>
+
+      <div id="interviewState" class="interview hidden">
+        <div class="speaker">面签官</div>
+        <div class="question-mask" id="questionMask">问题已播放</div>
+        <div class="question-text hidden" id="questionText">
+          <div class="fr" id="questionFr"></div>
+          <div class="zh" id="questionZh"></div>
+        </div>
+
+        <div class="question-actions">
+          <button class="ghost" id="replayBtn">🔊 重播问题</button>
+          <button class="ghost" id="toggleTextBtn">文本</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="speaker">你的回答</div>
+        <div class="record-row">
+          <button class="record" id="recordBtn">
+            <span class="dot"></span>
+            <span id="recordLabel">开始录音</span>
+          </button>
+          <div class="timer" id="timer">00:00</div>
+        </div>
+
+        <textarea id="answerBox" placeholder="录音转写会显示在这里。也可以直接输入或修改法语回答。"></textarea>
+
+        <div class="submit-row">
+          <button class="secondary" id="clearBtn">清空回答</button>
+          <button class="primary" id="sendBtn">提交回答并追问</button>
+        </div>
+      </div>
+
+      <div id="feedbackState" class="feedback hidden">
+        <div class="speaker">本轮复盘</div>
+        <div id="feedbackContent" class="feedback-content"></div>
+        <button class="primary full" id="newRoundBtn">开始新一轮</button>
+      </div>
+    </section>
+
+    <section class="bottom">
+      <button class="primary full" id="startBtn">随机抽题并开始面签</button>
+      <button class="danger full hidden" id="finishBtn">结束面签并生成中文复盘</button>
+      <div class="status" id="status">题库共 <span id="questionCount"></span> 题</div>
+    </section>
+  </main>
+
+  <script src="/questions.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

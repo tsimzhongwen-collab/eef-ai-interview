@@ -1,0 +1,156 @@
+:root{
+  --bg:#f3f3ef;
+  --card:#ffffff;
+  --ink:#171717;
+  --muted:#70706a;
+  --line:#deded8;
+  --soft:#efefe9;
+  --danger:#8f2525;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  min-height:100vh;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif;
+  padding:28px;
+}
+button,textarea{font:inherit}
+button{cursor:pointer}
+.shell{width:min(820px,100%);margin:0 auto}
+.topbar{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:20px;
+  margin-bottom:18px;
+}
+.eyebrow{font-size:12px;letter-spacing:.12em;color:var(--muted);font-weight:700}
+h1{font-size:clamp(34px,6vw,64px);line-height:.95;letter-spacing:-.055em;margin:8px 0 14px}
+.topbar p{margin:0;color:var(--muted);line-height:1.6}
+.counter{
+  border:1px solid var(--line);
+  border-radius:999px;
+  padding:10px 14px;
+  font-weight:700;
+  white-space:nowrap;
+}
+.stage{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:26px;
+  padding:26px;
+  min-height:520px;
+  box-shadow:0 16px 45px rgba(0,0,0,.05);
+}
+.category{
+  display:inline-flex;
+  padding:7px 11px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  color:var(--muted);
+  font-size:13px;
+}
+.empty{
+  min-height:420px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+}
+.seal{
+  width:86px;height:86px;border-radius:50%;
+  border:1px solid var(--ink);
+  display:grid;place-items:center;
+  font-weight:800;letter-spacing:.12em;
+}
+.empty h2{margin:24px 0 10px;font-size:28px}
+.empty p{margin:0;max-width:520px;color:var(--muted);line-height:1.7}
+.hidden{display:none!important}
+.interview{padding-top:22px}
+.speaker{font-size:13px;color:var(--muted);font-weight:700;letter-spacing:.06em}
+.question-mask{
+  min-height:185px;
+  display:grid;
+  place-items:center;
+  text-align:center;
+  font-size:clamp(28px,5vw,46px);
+  font-weight:800;
+  letter-spacing:-.04em;
+}
+.question-text{
+  min-height:185px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+.fr{
+  font-size:clamp(27px,5vw,44px);
+  font-weight:800;
+  line-height:1.2;
+  letter-spacing:-.04em;
+}
+.zh{margin-top:14px;color:var(--muted);font-size:20px;line-height:1.5}
+.question-actions,.submit-row,.record-row{
+  display:flex;gap:12px;align-items:center
+}
+.question-actions{justify-content:flex-end}
+.divider{height:1px;background:var(--line);margin:22px 0}
+.ghost,.secondary,.primary,.danger,.record{
+  border-radius:15px;
+  padding:14px 17px;
+  border:1px solid var(--line);
+  font-weight:700;
+}
+.ghost,.secondary{background:#fff;color:var(--ink)}
+.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+.danger{background:var(--danger);color:#fff;border-color:var(--danger)}
+.full{width:100%}
+.record-row{margin:13px 0}
+.record{
+  background:#fff;
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+}
+.dot{width:11px;height:11px;border-radius:50%;background:#a52323}
+.record.recording{background:#191919;color:#fff;border-color:#191919}
+.record.recording .dot{animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.3;transform:scale(1.35)}}
+.timer{font-variant-numeric:tabular-nums;color:var(--muted)}
+textarea{
+  width:100%;
+  min-height:145px;
+  border:1px solid var(--line);
+  border-radius:17px;
+  padding:16px;
+  resize:vertical;
+  outline:none;
+  line-height:1.6;
+  font-size:17px;
+  margin-bottom:12px;
+}
+textarea:focus{border-color:#777}
+.submit-row{justify-content:flex-end}
+.bottom{margin-top:14px}
+.bottom button{margin-bottom:10px}
+.status{text-align:center;color:var(--muted);font-size:13px;min-height:20px}
+.feedback{padding-top:22px}
+.feedback-content{
+  margin:18px 0 24px;
+  white-space:pre-wrap;
+  line-height:1.8;
+  font-size:16px;
+}
+.feedback-content h3{margin:22px 0 8px}
+@media(max-width:620px){
+  body{padding:14px}
+  .topbar{align-items:flex-start}
+  .counter{margin-top:6px}
+  .stage{padding:20px;border-radius:20px;min-height:560px}
+  .question-actions,.submit-row{display:grid;grid-template-columns:1fr 1fr}
+  .record-row{justify-content:space-between}
+  .record{flex:1}
+}

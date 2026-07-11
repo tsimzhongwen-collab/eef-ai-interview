@@ -1,12 +1,9 @@
 {
   "functions": {
-    "api/transcribe.js": {
-      "maxDuration": 60
+    "api/realtime-token.js": {
+      "maxDuration": 10
     },
-    "api/interview.js": {
-      "maxDuration": 60
-    },
-    "api/speech.js": {
+    "api/feedback.js": {
       "maxDuration": 60
     }
   }

@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "api/transcribe.js": {
+      "maxDuration": 60
+    },
+    "api/interview.js": {
+      "maxDuration": 60
+    },
+    "api/speech.js": {
+      "maxDuration": 60
+    }
+  }
+}

@@ -28,40 +28,111 @@
         </div>
 
         <div class="officer" id="officerAvatar" aria-hidden="true">
-          <div class="head">
-            <div class="hair"></div>
-            <div class="hair-side hair-left"></div>
-            <div class="hair-side hair-right"></div>
-            <div class="ear ear-left"></div>
-            <div class="ear ear-right"></div>
-            <div class="face">
-              <div class="forehead-shadow"></div>
-              <div class="brow brow-left"></div>
-              <div class="brow brow-right"></div>
-              <div class="eye eye-left"><span></span><i></i></div>
-              <div class="eye eye-right"><span></span><i></i></div>
-              <div class="glasses">
-                <div class="lens lens-left"></div>
-                <div class="lens lens-right"></div>
-              </div>
-              <div class="nose"></div>
-              <div class="cheek cheek-left"></div>
-              <div class="cheek cheek-right"></div>
-              <div class="mouth" id="mouth"></div>
-              <div class="stubble"></div>
-              <div class="jaw-shadow"></div>
-            </div>
-          </div>
-          <div class="neck"></div>
-          <div class="body">
-            <div class="jacket"></div>
-            <div class="shirt"></div>
-            <div class="collar collar-left"></div>
-            <div class="collar collar-right"></div>
-            <div class="tie"></div>
-            <div class="lapel-pin"></div>
-            <div class="badge"></div>
-          </div>
+          <svg class="memoji-avatar" viewBox="0 0 640 720" role="img" aria-label="French Campus France officer avatar">
+            <defs>
+              <radialGradient id="skinGlow" cx="36%" cy="24%" r="78%">
+                <stop offset="0%" stop-color="#fff1dc"/>
+                <stop offset="42%" stop-color="#f0bd96"/>
+                <stop offset="78%" stop-color="#d8936d"/>
+                <stop offset="100%" stop-color="#b86f50"/>
+              </radialGradient>
+              <radialGradient id="noseGlow" cx="38%" cy="28%" r="80%">
+                <stop offset="0%" stop-color="#ffe8cf"/>
+                <stop offset="62%" stop-color="#d7956f"/>
+                <stop offset="100%" stop-color="#aa6649"/>
+              </radialGradient>
+              <linearGradient id="hairSoft" x1="18%" y1="6%" x2="86%" y2="82%">
+                <stop offset="0%" stop-color="#b47a4c"/>
+                <stop offset="42%" stop-color="#6a4128"/>
+                <stop offset="100%" stop-color="#2f211b"/>
+              </linearGradient>
+              <linearGradient id="suitSoft" x1="20%" y1="0%" x2="86%" y2="100%">
+                <stop offset="0%" stop-color="#31434f"/>
+                <stop offset="55%" stop-color="#1f2e38"/>
+                <stop offset="100%" stop-color="#121b22"/>
+              </linearGradient>
+              <linearGradient id="shirtSoft" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#fff8ec"/>
+                <stop offset="58%" stop-color="#eadfcd"/>
+                <stop offset="100%" stop-color="#cfc0aa"/>
+              </linearGradient>
+              <filter id="softShadow" x="-30%" y="-30%" width="160%" height="170%">
+                <feDropShadow dx="0" dy="22" stdDeviation="18" flood-color="#3c2e28" flood-opacity=".24"/>
+              </filter>
+              <filter id="innerSoft">
+                <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur"/>
+                <feOffset dx="-5" dy="-8" result="offset"/>
+                <feComposite in="offset" in2="SourceAlpha" operator="arithmetic" k2="-1" k3="1" result="inner"/>
+                <feColorMatrix in="inner" type="matrix" values="0 0 0 0 0.28 0 0 0 0 0.13 0 0 0 0 0.08 0 0 0 .24 0"/>
+                <feComposite in="SourceGraphic"/>
+              </filter>
+            </defs>
+
+            <g filter="url(#softShadow)">
+              <path d="M178 540c19-92 90-142 142-142s123 50 142 142l25 126H153l25-126z" fill="url(#suitSoft)"/>
+              <path d="M258 424h124l-32 236h-60l-32-236z" fill="url(#shirtSoft)"/>
+              <path d="M282 438l38 50 38-50 28 26-39 88h-54l-39-88 28-26z" fill="#f9f1e5"/>
+              <path d="M304 482h32l18 168h-68l18-168z" fill="#244b83"/>
+              <circle cx="220" cy="505" r="13" fill="#f6f0e8"/>
+              <path d="M210 505h7v26h-7z" fill="#244b83"/>
+              <path d="M217 505h7v26h-7z" fill="#fff"/>
+              <path d="M224 505h7v26h-7z" fill="#c82d2d"/>
+              <rect x="410" y="516" width="60" height="38" rx="8" fill="#f4ede0" opacity=".88"/>
+              <circle cx="424" cy="535" r="8" fill="#1b4d3e"/>
+              <rect x="438" y="528" width="22" height="4" rx="2" fill="#7b756c"/>
+              <rect x="438" y="538" width="18" height="4" rx="2" fill="#a49b8e"/>
+
+              <rect x="275" y="350" width="90" height="104" rx="36" fill="#d28d68"/>
+              <ellipse cx="320" cy="436" rx="64" ry="18" fill="#8f5c45" opacity=".18"/>
+
+              <ellipse cx="207" cy="263" rx="34" ry="54" fill="#dfaa86"/>
+              <ellipse cx="433" cy="263" rx="34" ry="54" fill="#c98563"/>
+              <path d="M221 268c6-18 13-27 24-33" stroke="#a5664c" stroke-width="6" stroke-linecap="round" opacity=".32"/>
+              <path d="M419 268c-6-18-13-27-24-33" stroke="#8d523d" stroke-width="6" stroke-linecap="round" opacity=".28"/>
+
+              <path d="M156 232c2-112 73-189 164-189s162 77 164 189c-35-54-78-79-164-79s-129 25-164 79z" fill="url(#hairSoft)"/>
+              <path d="M169 205c12-89 74-150 151-150 67 0 123 47 143 119-65-49-141-54-237-17-24 9-42 25-57 48z" fill="#8c5c36" opacity=".78"/>
+              <path d="M213 96c52-47 128-47 191-5 18 12 31 33 36 62-70-39-151-45-242-9-1-19 3-35 15-48z" fill="#b57947" opacity=".72"/>
+
+              <ellipse cx="320" cy="266" rx="136" ry="164" fill="url(#skinGlow)" filter="url(#innerSoft)"/>
+              <ellipse cx="273" cy="214" rx="68" ry="35" fill="#fff4df" opacity=".33"/>
+              <ellipse cx="388" cy="317" rx="46" ry="56" fill="#a7654b" opacity=".09"/>
+              <ellipse cx="260" cy="326" rx="42" ry="24" fill="#df7d74" opacity=".18"/>
+              <ellipse cx="380" cy="326" rx="42" ry="24" fill="#df7d74" opacity=".14"/>
+
+              <path d="M242 230c20-12 44-12 63-1" stroke="#5f3d2d" stroke-width="12" stroke-linecap="round"/>
+              <path d="M335 229c19-11 43-11 63 1" stroke="#5f3d2d" stroke-width="12" stroke-linecap="round"/>
+
+              <ellipse cx="273" cy="265" rx="32" ry="30" fill="#fff9ef"/>
+              <ellipse cx="367" cy="265" rx="32" ry="30" fill="#fff9ef"/>
+              <circle cx="274" cy="266" r="15" fill="#3b3328"/>
+              <circle cx="366" cy="266" r="15" fill="#3b3328"/>
+              <circle cx="280" cy="258" r="5" fill="#fff"/>
+              <circle cx="372" cy="258" r="5" fill="#fff"/>
+              <path d="M241 255c22-16 45-17 65-3" stroke="#6b4935" stroke-width="5" stroke-linecap="round" opacity=".2"/>
+              <path d="M334 252c21-14 44-13 65 3" stroke="#6b4935" stroke-width="5" stroke-linecap="round" opacity=".2"/>
+
+              <g opacity=".96">
+                <rect x="224" y="239" width="91" height="56" rx="20" fill="#ffffff" opacity=".16" stroke="#8b765e" stroke-width="7"/>
+                <rect x="325" y="239" width="91" height="56" rx="20" fill="#ffffff" opacity=".16" stroke="#8b765e" stroke-width="7"/>
+                <path d="M315 266h10" stroke="#8b765e" stroke-width="7" stroke-linecap="round"/>
+                <path d="M222 263c-15-2-25 4-31 15" stroke="#8b765e" stroke-width="6" stroke-linecap="round"/>
+                <path d="M418 263c15-2 25 4 31 15" stroke="#8b765e" stroke-width="6" stroke-linecap="round"/>
+              </g>
+
+              <ellipse cx="320" cy="303" rx="34" ry="27" fill="url(#noseGlow)"/>
+              <ellipse cx="307" cy="292" rx="13" ry="8" fill="#fff0da" opacity=".44"/>
+              <circle cx="308" cy="310" r="3" fill="#8c573f" opacity=".25"/>
+              <circle cx="333" cy="310" r="3" fill="#8c573f" opacity=".25"/>
+
+              <g id="mouth">
+                <path d="M286 365c21 17 48 17 69 0" fill="none" stroke="#884c44" stroke-width="9" stroke-linecap="round"/>
+                <ellipse cx="320" cy="370" rx="29" ry="5" fill="#5f2d32" opacity=".12"/>
+              </g>
+
+              <path d="M259 388c39 36 85 36 123 0" fill="none" stroke="#9b6048" stroke-width="7" stroke-linecap="round" opacity=".16"/>
+            </g>
+          </svg>
         </div>
 
         <div class="desk">

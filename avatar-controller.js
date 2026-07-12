@@ -4,7 +4,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 class AvatarController {
   constructor({
     mount,
-    modelUrl = "/models/interviewer.glb"
+    modelUrl = "/public/models/interviewer.glb"
   }) {
     this.mount = mount;
     this.modelUrl = modelUrl;

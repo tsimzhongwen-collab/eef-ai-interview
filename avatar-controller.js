@@ -84,8 +84,20 @@ class AvatarController {
   }
 
   frameChestUp() {
-    this.camera.position.set(0, 1.45, 2.55);
-    this.camera.lookAt(0, 1.34, 0);
+    const box = new THREE.Box3().setFromObject(this.model);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    const height = Math.max(size.y, 0.01);
+
+    const topY = box.max.y;
+    const lowerFrameY = box.min.y + height * 0.46;
+    const visibleHeight = (topY - lowerFrameY) / 0.9;
+    const targetY = topY - visibleHeight * 0.4;
+    const distance = (visibleHeight * 0.5) / Math.tan(THREE.MathUtils.degToRad(this.camera.fov * 0.5));
+
+    this.camera.position.set(center.x, targetY, box.max.z + distance * 1.08);
+    this.camera.lookAt(center.x, targetY, center.z);
+    this.camera.updateProjectionMatrix();
   }
 
   reportModelData(gltf) {

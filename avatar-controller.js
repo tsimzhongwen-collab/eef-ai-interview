@@ -1,5 +1,5 @@
-import * as THREE from "https://esm.sh/three@0.160.1";
-import { GLTFLoader } from "https://esm.sh/three@0.160.1/examples/jsm/loaders/GLTFLoader.js";
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 class AvatarController {
   constructor({

@@ -1,5 +1,5 @@
-import * as THREE from "three";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import * as THREE from "https://esm.sh/three@0.160.1";
+import { GLTFLoader } from "https://esm.sh/three@0.160.1/examples/jsm/loaders/GLTFLoader.js";
 
 class AvatarController {
   constructor({
@@ -22,6 +22,7 @@ class AvatarController {
   }
 
   async init() {
+    this.mount.dataset.avatarStatus = "Chargement du modèle...";
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.setClearColor(0x000000, 0);
@@ -32,6 +33,7 @@ class AvatarController {
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(this.mount);
 
+    console.info("[AvatarController] Loading GLB model:", this.modelUrl);
     const gltf = await new GLTFLoader().loadAsync(this.modelUrl);
     this.model = gltf.scene;
     this.scene.add(this.model);
@@ -39,6 +41,8 @@ class AvatarController {
     this.normalizeModel();
     this.frameChestUp();
     this.reportModelData(gltf);
+    this.mount.classList.add("is-ready");
+    this.mount.dataset.avatarStatus = "";
     this.start();
   }
 
@@ -154,7 +158,8 @@ if (mount) {
   const controller = new AvatarController({ mount });
   controller.init().catch((error) => {
     console.error("[AvatarController] Failed to load /models/interviewer.glb", error);
-    mount.textContent = "Impossible de charger le modèle 3D.";
+    mount.dataset.avatarStatus = "Impossible de charger le modèle 3D.";
+    mount.classList.add("has-error");
   });
   window.avatarController = controller;
 }

@@ -17,6 +17,7 @@ class AvatarController {
     this.clock = new THREE.Clock();
     this.mixer = null;
     this.model = null;
+    this.poseBindings = null;
     this.resizeObserver = null;
     this.raf = null;
   }
@@ -39,6 +40,7 @@ class AvatarController {
     this.scene.add(this.model);
 
     this.normalizeModel();
+    this.applyNeutralInterviewPose();
     this.frameChestUp();
     this.reportModelData(gltf);
     this.mount.classList.add("is-ready");
@@ -98,6 +100,188 @@ class AvatarController {
     this.camera.position.set(center.x, targetY, box.max.z + distance * 1.08);
     this.camera.lookAt(center.x, targetY, center.z);
     this.camera.updateProjectionMatrix();
+  }
+
+  applyNeutralInterviewPose() {
+    const bones = this.getSkeletonBones();
+    const bindings = this.bindInterviewPoseBones(bones);
+    this.poseBindings = bindings;
+
+    Object.values(bindings).forEach((bone) => {
+      if (!bone || bone.userData.baseNeutralQuaternion) return;
+      bone.userData.baseNeutralQuaternion = bone.quaternion.clone();
+    });
+
+    const upperArmOffsetDeg = 76;
+    const forearmBendDeg = 18;
+    const leftUpperOffset = this.pickBestLimbOffset(
+      bindings.leftUpperArm,
+      bindings.leftLowerArm,
+      upperArmOffsetDeg,
+      "leftUpperArm"
+    );
+    const rightUpperOffset = this.pickBestLimbOffset(
+      bindings.rightUpperArm,
+      bindings.rightLowerArm,
+      upperArmOffsetDeg,
+      "rightUpperArm"
+    );
+
+    this.applyBoneOffset(bindings.leftUpperArm, leftUpperOffset.quaternion);
+    this.applyBoneOffset(bindings.rightUpperArm, rightUpperOffset.quaternion);
+    this.model.updateMatrixWorld(true);
+
+    const leftForearmOffset = this.pickBestLimbOffset(
+      bindings.leftLowerArm,
+      bindings.leftHand,
+      forearmBendDeg,
+      "leftLowerArm",
+      0.45
+    );
+    const rightForearmOffset = this.pickBestLimbOffset(
+      bindings.rightLowerArm,
+      bindings.rightHand,
+      forearmBendDeg,
+      "rightLowerArm",
+      0.45
+    );
+
+    this.applyBoneOffset(bindings.leftLowerArm, leftForearmOffset.quaternion);
+    this.applyBoneOffset(bindings.rightLowerArm, rightForearmOffset.quaternion);
+
+    if (bindings.spine && !bindings.spine.userData.baseNeutralQuaternion) {
+      bindings.spine.userData.baseNeutralQuaternion = bindings.spine.quaternion.clone();
+    }
+
+    this.model.updateMatrixWorld(true);
+
+    console.group("[AvatarController] neutral interview pose bindings");
+    console.log("left upper arm:", bindings.leftUpperArm?.name || null);
+    console.log("right upper arm:", bindings.rightUpperArm?.name || null);
+    console.log("left forearm:", bindings.leftLowerArm?.name || null);
+    console.log("right forearm:", bindings.rightLowerArm?.name || null);
+    console.log("left hand:", bindings.leftHand?.name || null);
+    console.log("right hand:", bindings.rightHand?.name || null);
+    console.log("spine / chest:", bindings.spine?.name || null);
+    console.log("rotation offsets:", {
+      leftUpperArm: leftUpperOffset.label,
+      rightUpperArm: rightUpperOffset.label,
+      leftForeArm: leftForearmOffset.label,
+      rightForeArm: rightForearmOffset.label
+    });
+    console.groupEnd();
+  }
+
+  getSkeletonBones() {
+    const boneMap = new Map();
+    this.model.traverse((object) => {
+      if (!object.isSkinnedMesh || !object.skeleton) return;
+      object.skeleton.bones.forEach((bone) => {
+        if (bone?.isBone && !boneMap.has(bone.uuid)) {
+          boneMap.set(bone.uuid, bone);
+        }
+      });
+    });
+    return Array.from(boneMap.values());
+  }
+
+  bindInterviewPoseBones(bones) {
+    return {
+      leftUpperArm: this.findBone(bones, ["left", "arm"], ["fore", "lower", "hand", "leg"]),
+      rightUpperArm: this.findBone(bones, ["right", "arm"], ["fore", "lower", "hand", "leg"]),
+      leftLowerArm: this.findBone(bones, ["left"], ["hand", "leg"], ["forearm", "fore arm", "lowerarm", "lower arm"]),
+      rightLowerArm: this.findBone(bones, ["right"], ["hand", "leg"], ["forearm", "fore arm", "lowerarm", "lower arm"]),
+      leftHand: this.findBone(bones, ["left", "hand"], ["finger", "thumb"]),
+      rightHand: this.findBone(bones, ["right", "hand"], ["finger", "thumb"]),
+      spine: this.findBone(bones, [], ["neck", "head", "arm", "leg"], ["upperchest", "chest", "spine2", "spine1", "spine"])
+    };
+  }
+
+  findBone(bones, requiredWords, rejectedWords = [], preferredPhrases = []) {
+    const candidates = bones
+      .map((bone) => ({
+        bone,
+        name: bone.name || "",
+        normalizedName: this.normalizeBoneName(bone.name || "")
+      }))
+      .filter((entry) => requiredWords.every((word) => entry.normalizedName.includes(word)))
+      .filter((entry) => rejectedWords.every((word) => !entry.normalizedName.includes(word)));
+
+    if (!candidates.length) return null;
+
+    candidates.sort((a, b) => {
+      const score = (entry) => preferredPhrases.reduce((total, phrase, index) => {
+        const normalizedPhrase = this.normalizeBoneName(phrase);
+        return total + (entry.normalizedName.includes(normalizedPhrase) ? 100 - index : 0);
+      }, 0);
+      return score(b) - score(a);
+    });
+
+    return candidates[0].bone;
+  }
+
+  normalizeBoneName(name) {
+    return name
+      .toLowerCase()
+      .replace(/mixamorig|[_\-.:\s]/g, "")
+      .replace("upperarm", "arm")
+      .replace("lowerarm", "forearm")
+      .replace("forearm", "forearm");
+  }
+
+  pickBestLimbOffset(bone, childBone, degrees, role, verticalWeight = 1) {
+    if (!bone || !childBone) {
+      return {
+        quaternion: new THREE.Quaternion(),
+        label: `${role}: none`
+      };
+    }
+
+    const baseQuaternion = bone.userData.baseNeutralQuaternion || bone.quaternion.clone();
+    const axes = [
+      new THREE.Vector3(1, 0, 0),
+      new THREE.Vector3(0, 1, 0),
+      new THREE.Vector3(0, 0, 1)
+    ];
+    const axisNames = ["x", "y", "z"];
+    const candidates = [];
+
+    axes.forEach((axis, axisIndex) => {
+      [-1, 1].forEach((direction) => {
+        const radians = THREE.MathUtils.degToRad(degrees * direction);
+        const quaternion = new THREE.Quaternion().setFromAxisAngle(axis, radians);
+        bone.quaternion.copy(baseQuaternion).multiply(quaternion);
+        this.model.updateMatrixWorld(true);
+
+        const start = new THREE.Vector3();
+        const end = new THREE.Vector3();
+        bone.getWorldPosition(start);
+        childBone.getWorldPosition(end);
+        const limbDirection = end.sub(start).normalize();
+        const score = Math.abs(limbDirection.y + 0.82) * verticalWeight + Math.abs(limbDirection.z) * 0.15;
+
+        candidates.push({
+          quaternion,
+          score,
+          label: `${role}: local ${axisNames[axisIndex]} ${degrees * direction}deg`
+        });
+      });
+    });
+
+    bone.quaternion.copy(baseQuaternion);
+    this.model.updateMatrixWorld(true);
+
+    candidates.sort((a, b) => a.score - b.score);
+    return candidates[0] || {
+      quaternion: new THREE.Quaternion(),
+      label: `${role}: none`
+    };
+  }
+
+  applyBoneOffset(bone, offsetQuaternion) {
+    if (!bone) return;
+    const baseQuaternion = bone.userData.baseNeutralQuaternion || bone.quaternion.clone();
+    bone.quaternion.copy(baseQuaternion).multiply(offsetQuaternion);
   }
 
   reportModelData(gltf) {

@@ -18,6 +18,12 @@ class AvatarController {
     this.mixer = null;
     this.model = null;
     this.poseBindings = null;
+    this.faceControls = [];
+    this.headBone = null;
+    this.neckBone = null;
+    this.targetSpeakingLevel = 0;
+    this.speakingLevel = 0;
+    this.avatarMode = "idle";
     this.resizeObserver = null;
     this.raf = null;
   }
@@ -41,6 +47,7 @@ class AvatarController {
 
     this.normalizeModel();
     this.applyNeutralInterviewPose();
+    this.bindExpressionControls();
     this.frameChestUp();
     this.reportModelData(gltf);
     this.mount.classList.add("is-ready");
@@ -100,6 +107,105 @@ class AvatarController {
     this.camera.position.set(center.x, targetY, box.max.z + distance * 1.08);
     this.camera.lookAt(center.x, targetY, center.z);
     this.camera.updateProjectionMatrix();
+  }
+
+  bindExpressionControls() {
+    this.faceControls = [];
+
+    this.model.traverse((object) => {
+      if (!object.isMesh || !object.morphTargetDictionary || !object.morphTargetInfluences) return;
+      const entries = Object.entries(object.morphTargetDictionary);
+      const indices = {
+        mouthOpen: this.findMorphIndex(entries, ["mouthopen"]),
+        jawOpen: this.findMorphIndex(entries, ["jawopen"]),
+        visemeAa: this.findMorphIndex(entries, ["visemeaa", "visemea"]),
+        visemeO: this.findMorphIndex(entries, ["visemeo"]),
+        visemeE: this.findMorphIndex(entries, ["visemee"]),
+        mouthClose: this.findMorphIndex(entries, ["mouthclose"])
+      };
+
+      if (Object.values(indices).some((index) => index !== null)) {
+        this.faceControls.push({ mesh: object, indices });
+      }
+    });
+
+    const bones = this.getSkeletonBones();
+    this.headBone = this.findBone(bones, ["head"], ["hand"]);
+    this.neckBone = this.findBone(bones, ["neck"], []);
+
+    [this.headBone, this.neckBone].forEach((bone) => {
+      if (bone && !bone.userData.baseMotionQuaternion) {
+        bone.userData.baseMotionQuaternion = bone.quaternion.clone();
+      }
+    });
+
+    console.group("[AvatarController] expression controls");
+    console.log("face morph meshes:", this.faceControls.map((control) => control.mesh.name || "(unnamed mesh)"));
+    console.log("head bone:", this.headBone?.name || null);
+    console.log("neck bone:", this.neckBone?.name || null);
+    console.groupEnd();
+  }
+
+  findMorphIndex(entries, preferredNames) {
+    const normalizedPreferred = preferredNames.map((name) => this.normalizeMorphName(name));
+    const found = entries.find(([name]) => {
+      const normalized = this.normalizeMorphName(name);
+      return normalizedPreferred.some((preferred) => normalized.includes(preferred));
+    });
+    return found ? found[1] : null;
+  }
+
+  normalizeMorphName(name) {
+    return String(name).toLowerCase().replace(/[_\-.:\s]/g, "");
+  }
+
+  setSpeakingLevel(level, mode = "idle") {
+    this.targetSpeakingLevel = Math.max(0, Math.min(1, Number(level) || 0));
+    this.avatarMode = mode;
+  }
+
+  updateExpression(delta) {
+    const smoothing = Math.min(1, delta * 12);
+    this.speakingLevel += (this.targetSpeakingLevel - this.speakingLevel) * smoothing;
+    const mouthOpen = Math.min(1, this.speakingLevel * 1.15);
+    const secondary = Math.max(0, mouthOpen - 0.18);
+
+    this.faceControls.forEach(({ mesh, indices }) => {
+      this.setMorphInfluence(mesh, indices.mouthOpen, mouthOpen);
+      this.setMorphInfluence(mesh, indices.jawOpen, mouthOpen * 0.72);
+      this.setMorphInfluence(mesh, indices.visemeAa, mouthOpen * 0.62);
+      this.setMorphInfluence(mesh, indices.visemeO, secondary * 0.28);
+      this.setMorphInfluence(mesh, indices.visemeE, secondary * 0.18);
+      this.setMorphInfluence(mesh, indices.mouthClose, 0);
+    });
+
+    this.updateHeadMotion();
+  }
+
+  setMorphInfluence(mesh, index, value) {
+    if (index === null || index === undefined) return;
+    mesh.morphTargetInfluences[index] = Math.max(0, Math.min(1, value));
+  }
+
+  updateHeadMotion() {
+    const time = this.clock.elapsedTime;
+    const speaking = this.avatarMode === "assistant" ? this.speakingLevel : 0;
+    const thinking = this.avatarMode === "thinking" ? 0.35 : 0;
+    const idle = this.avatarMode === "idle" ? 0.18 : 0;
+    const intensity = Math.max(speaking, thinking, idle);
+    const yaw = Math.sin(time * 1.05) * 0.018 * intensity;
+    const pitch = Math.sin(time * 1.7 + 0.5) * 0.012 * intensity + speaking * 0.018;
+    const roll = Math.sin(time * 0.8 + 1.2) * 0.01 * intensity;
+
+    this.applyMotionOffset(this.headBone, pitch, yaw, roll);
+    this.applyMotionOffset(this.neckBone, pitch * 0.35, yaw * 0.35, roll * 0.25);
+  }
+
+  applyMotionOffset(bone, pitch, yaw, roll) {
+    if (!bone) return;
+    const baseQuaternion = bone.userData.baseMotionQuaternion || bone.quaternion.clone();
+    const offset = new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch, yaw, roll, "XYZ"));
+    bone.quaternion.copy(baseQuaternion).multiply(offset);
   }
 
   applyNeutralInterviewPose() {
@@ -333,9 +439,11 @@ class AvatarController {
   start() {
     const tick = () => {
       this.raf = requestAnimationFrame(tick);
+      const delta = this.clock.getDelta();
       if (this.mixer) {
-        this.mixer.update(this.clock.getDelta());
+        this.mixer.update(delta);
       }
+      this.updateExpression(delta);
       this.renderer.render(this.scene, this.camera);
     };
     tick();

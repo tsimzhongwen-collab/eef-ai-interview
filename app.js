@@ -91,6 +91,7 @@ function setStatus(text, mode = state.currentMode) {
   els.officer.classList.toggle("speaking", mode === "assistant");
   els.officer.classList.toggle("listening", mode === "user");
   els.officer.classList.toggle("thinking", mode === "thinking");
+  window.avatarController?.setSpeakingLevel?.(0, mode);
 }
 
 function updateCounter() {
@@ -235,6 +236,32 @@ function createResponse(instructions) {
   });
 }
 
+function isRepeatRequest(text = "") {
+  const normalized = text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  return [
+    /repetez|repeter|pouvez-vous repeter|encore une fois|une autre fois/,
+    /je n'ai pas compris|je ne comprends pas|pas compris|pas entendu|je n'ai pas entendu/,
+    /repeat|again|one more time/,
+    /再说|重复|再问一遍|听不清|没听清|没有听清|没听懂|没有听懂/
+  ].some((pattern) => pattern.test(normalized));
+}
+
+function repeatCurrentQuestion() {
+  const question = state.currentQuestion || "Pouvez-vous répéter votre question ?";
+  setQuestionText(question);
+  setStatus("Le jury répète la question...", "thinking");
+  createResponse([
+    buildBaseInstruction(),
+    "L'étudiant demande de répéter la question.",
+    "Répète exactement la même question, sans la reformuler, sans ajouter d'autre question et sans commentaire :",
+    question
+  ].join(" "));
+}
+
 function askNextQuestion(lastUserAnswer = "") {
   if (state.interviewEnded || state.awaitingResponse) return;
   advanceTopicIfNeeded(lastUserAnswer);
@@ -368,6 +395,10 @@ function handleRealtimeEvent(message) {
     if (text) {
       state.transcript.push({ role: "user", text, topic: currentTopic(), question: state.currentQuestion });
     }
+    if (isRepeatRequest(text)) {
+      repeatCurrentQuestion();
+      return;
+    }
     if (state.questionCount >= state.targetQuestionCount || state.currentTopicIndex === TOPIC_ORDER.length - 1) {
       finishAfterFinalAnswer();
     } else {
@@ -432,6 +463,7 @@ function animateAvatar() {
     smoothed += (target - smoothed) * .22;
     const level = Math.max(.12, smoothed);
     els.mouth.style.setProperty("--mouth-open", smoothed.toFixed(3));
+    window.avatarController?.setSpeakingLevel?.(smoothed, state.currentMode);
     els.meters.forEach((meter, index) => {
       const offset = index === 1 ? .18 : index === 2 ? -.08 : 0;
       meter.style.setProperty("--meter-level", Math.max(.18, Math.min(1, level + offset)).toFixed(2));
@@ -497,6 +529,7 @@ async function closeRealtime() {
   state.audioContext = null;
   state.analyser = null;
   els.mouth.style.setProperty("--mouth-open", "0");
+  window.avatarController?.setSpeakingLevel?.(0, "idle");
 }
 
 function resetInterviewState() {

@@ -43,7 +43,7 @@ export default async function handler(req, res) {
               },
               turn_detection: {
                 type: "semantic_vad",
-                eagerness: "high",
+                eagerness: "low",
                 create_response: false,
                 interrupt_response: true
               }

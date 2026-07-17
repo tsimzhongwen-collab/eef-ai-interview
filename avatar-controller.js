@@ -19,6 +19,7 @@ class AvatarController {
     this.model = null;
     this.poseBindings = null;
     this.faceControls = [];
+    this.eyeControls = [];
     this.headBone = null;
     this.neckBone = null;
     this.targetSpeakingLevel = 0;
@@ -111,6 +112,7 @@ class AvatarController {
 
   bindExpressionControls() {
     this.faceControls = [];
+    this.eyeControls = [];
 
     this.model.traverse((object) => {
       if (!object.isMesh || !object.morphTargetDictionary || !object.morphTargetInfluences) return;
@@ -127,6 +129,21 @@ class AvatarController {
       if (Object.values(indices).some((index) => index !== null)) {
         this.faceControls.push({ mesh: object, indices });
       }
+
+      const eyeIndices = {
+        lookUpLeft: this.findMorphIndex(entries, ["eyelookupleft", "eyeslookup"]),
+        lookUpRight: this.findMorphIndex(entries, ["eyelookupright", "eyeslookup"]),
+        lookDownLeft: this.findMorphIndex(entries, ["eyelookdownleft", "eyeslookdown"]),
+        lookDownRight: this.findMorphIndex(entries, ["eyelookdownright", "eyeslookdown"]),
+        lookInLeft: this.findMorphIndex(entries, ["eyelookinleft"]),
+        lookInRight: this.findMorphIndex(entries, ["eyelookinright"]),
+        lookOutLeft: this.findMorphIndex(entries, ["eyelookoutleft"]),
+        lookOutRight: this.findMorphIndex(entries, ["eyelookoutright"])
+      };
+
+      if (Object.values(eyeIndices).some((index) => index !== null)) {
+        this.eyeControls.push({ mesh: object, indices: eyeIndices });
+      }
     });
 
     const bones = this.getSkeletonBones();
@@ -141,6 +158,7 @@ class AvatarController {
 
     console.group("[AvatarController] expression controls");
     console.log("face morph meshes:", this.faceControls.map((control) => control.mesh.name || "(unnamed mesh)"));
+    console.log("eye morph meshes:", this.eyeControls.map((control) => control.mesh.name || "(unnamed mesh)"));
     console.log("head bone:", this.headBone?.name || null);
     console.log("neck bone:", this.neckBone?.name || null);
     console.groupEnd();
@@ -167,7 +185,11 @@ class AvatarController {
   updateExpression(delta) {
     const smoothing = Math.min(1, delta * 12);
     this.speakingLevel += (this.targetSpeakingLevel - this.speakingLevel) * smoothing;
-    const mouthOpen = Math.min(1, this.speakingLevel * 1.15);
+    const proceduralSpeech = this.avatarMode === "assistant"
+      ? 0.18 + Math.sin(this.clock.elapsedTime * 12.5) * 0.08 + Math.sin(this.clock.elapsedTime * 19.5) * 0.05
+      : 0;
+    const effectiveSpeech = Math.max(this.speakingLevel, proceduralSpeech);
+    const mouthOpen = Math.min(1, Math.max(0, effectiveSpeech) * 1.15);
     const secondary = Math.max(0, mouthOpen - 0.18);
 
     this.faceControls.forEach(({ mesh, indices }) => {
@@ -179,7 +201,21 @@ class AvatarController {
       this.setMorphInfluence(mesh, indices.mouthClose, 0);
     });
 
+    this.updateGaze();
     this.updateHeadMotion();
+  }
+
+  updateGaze() {
+    this.eyeControls.forEach(({ mesh, indices }) => {
+      this.setMorphInfluence(mesh, indices.lookUpLeft, 0);
+      this.setMorphInfluence(mesh, indices.lookUpRight, 0);
+      this.setMorphInfluence(mesh, indices.lookInLeft, 0.02);
+      this.setMorphInfluence(mesh, indices.lookInRight, 0.02);
+      this.setMorphInfluence(mesh, indices.lookOutLeft, 0);
+      this.setMorphInfluence(mesh, indices.lookOutRight, 0);
+      this.setMorphInfluence(mesh, indices.lookDownLeft, 0.16);
+      this.setMorphInfluence(mesh, indices.lookDownRight, 0.16);
+    });
   }
 
   setMorphInfluence(mesh, index, value) {
@@ -197,8 +233,8 @@ class AvatarController {
     const pitch = Math.sin(time * 1.7 + 0.5) * 0.012 * intensity + speaking * 0.018;
     const roll = Math.sin(time * 0.8 + 1.2) * 0.01 * intensity;
 
-    this.applyMotionOffset(this.headBone, pitch, yaw, roll);
-    this.applyMotionOffset(this.neckBone, pitch * 0.35, yaw * 0.35, roll * 0.25);
+    this.applyMotionOffset(this.headBone, pitch - 0.018, yaw, roll);
+    this.applyMotionOffset(this.neckBone, pitch * 0.35 - 0.008, yaw * 0.35, roll * 0.25);
   }
 
   applyMotionOffset(bone, pitch, yaw, roll) {
@@ -254,6 +290,7 @@ class AvatarController {
 
     this.applyBoneOffset(bindings.leftLowerArm, leftForearmOffset.quaternion);
     this.applyBoneOffset(bindings.rightLowerArm, rightForearmOffset.quaternion);
+    this.applyHandAsymmetry(bindings);
 
     if (bindings.spine && !bindings.spine.userData.baseNeutralQuaternion) {
       bindings.spine.userData.baseNeutralQuaternion = bindings.spine.quaternion.clone();
@@ -273,9 +310,26 @@ class AvatarController {
       leftUpperArm: leftUpperOffset.label,
       rightUpperArm: rightUpperOffset.label,
       leftForeArm: leftForearmOffset.label,
-      rightForeArm: rightForearmOffset.label
+      rightForeArm: rightForearmOffset.label,
+      leftHand: "local euler 5deg, -3deg, -7deg",
+      rightHand: "local euler -2deg, 4deg, 5deg"
     });
     console.groupEnd();
+  }
+
+  applyHandAsymmetry(bindings) {
+    const offsets = [
+      { bone: bindings.leftHand, euler: new THREE.Euler(THREE.MathUtils.degToRad(5), THREE.MathUtils.degToRad(-3), THREE.MathUtils.degToRad(-7), "XYZ") },
+      { bone: bindings.rightHand, euler: new THREE.Euler(THREE.MathUtils.degToRad(-2), THREE.MathUtils.degToRad(4), THREE.MathUtils.degToRad(5), "XYZ") }
+    ];
+
+    offsets.forEach(({ bone, euler }) => {
+      if (!bone) return;
+      const baseQuaternion = bone.userData.baseNeutralQuaternion || bone.quaternion.clone();
+      bone.userData.baseNeutralQuaternion = baseQuaternion.clone();
+      const offset = new THREE.Quaternion().setFromEuler(euler);
+      bone.quaternion.copy(baseQuaternion).multiply(offset);
+    });
   }
 
   getSkeletonBones() {

@@ -77,6 +77,7 @@ const state = {
   askedQuestions: new Set(),
   transcript: [],
   currentQuestion: "",
+  currentQuestionZh: "",
   currentQuestionItem: null,
   currentMode: "idle",
   userWasHeard: false,
@@ -100,10 +101,18 @@ function updateCounter() {
   els.questionCount.textContent = `${String(state.questionCount).padStart(2, "0")} / ${state.targetQuestionCount}`;
 }
 
-function setQuestionText(text) {
+function setQuestionText(text, questionItem = null) {
   state.currentQuestion = text || "";
-  els.questionText.textContent = state.currentQuestion;
+  state.currentQuestionZh = questionItem?.zh || findQuestionTranslation(state.currentQuestion);
+  els.questionText.innerHTML = state.currentQuestion
+    ? `<span class="question-fr">${escapeHtml(state.currentQuestion)}</span>${state.currentQuestionZh ? `<span class="question-zh">${escapeHtml(state.currentQuestionZh)}</span>` : ""}`
+    : "";
   els.toggleTextBtn.classList.toggle("hidden", !state.currentQuestion);
+}
+
+function findQuestionTranslation(text) {
+  const item = questions.find((q) => q.fr === text);
+  return item?.zh || "";
 }
 
 function toggleQuestionText() {
@@ -274,7 +283,7 @@ function isRepeatRequest(text = "") {
 
 function repeatCurrentQuestion() {
   const question = state.currentQuestion || "Pouvez-vous répéter votre question ?";
-  setQuestionText(question);
+  setQuestionText(question, state.currentQuestionItem);
   setStatus("Le jury répète la question...", "thinking");
   createResponse([
     buildBaseInstruction(),
@@ -287,7 +296,7 @@ function repeatCurrentQuestion() {
 function askNextQuestion(lastUserAnswer = "") {
   if (state.interviewEnded || state.awaitingResponse) return;
   const turn = buildTurnInstruction(lastUserAnswer);
-  setQuestionText(turn.displayText);
+  setQuestionText(turn.displayText, state.currentQuestionItem);
   state.questionCount += 1;
   state.topicQuestionCount = 1;
   state.followUpCount = 0;
@@ -438,7 +447,7 @@ function handleRealtimeEvent(message) {
     const text = (event.transcript || "").trim();
     if (text) {
       state.transcript.push({ role: "assistant", text, topic: currentTopic() });
-      setQuestionText(text);
+      setQuestionText(text, state.currentQuestionItem);
     }
     return;
   }
@@ -738,6 +747,7 @@ function resetInterviewState() {
   state.askedQuestions = new Set();
   state.transcript = [];
   state.currentQuestion = "";
+  state.currentQuestionZh = "";
   state.currentQuestionItem = null;
   state.currentMode = "idle";
   state.userWasHeard = false;

@@ -83,7 +83,13 @@ const state = {
   userWasHeard: false,
   awaitingResponse: false,
   interviewEnded: false,
-  textVisible: false
+  textVisible: false,
+  mediaRecorder: null,
+  isCapturingUserAudio: false,
+  currentAudioChunks: [],
+  lastUserAudioUrl: "",
+  lastUserAudioMime: "",
+  audioObjectUrls: []
 };
 
 updateCounter();
@@ -330,6 +336,7 @@ async function startInterview() {
         autoGainControl: true
       }
     });
+    setupUserRecorder();
 
     const tokenResponse = await fetch("/api/realtime-token", { method: "POST" });
     const tokenData = await tokenResponse.json();
@@ -411,23 +418,34 @@ function handleRealtimeEvent(message) {
 
   if (event.type === "input_audio_buffer.speech_started") {
     state.userWasHeard = true;
+    beginUserAudioSegment();
     setStatus("Vous parlez...", "user");
     return;
   }
 
   if (event.type === "input_audio_buffer.speech_stopped") {
+    finishUserAudioSegmentSoon();
     setStatus("Réponse reçue, préparation de la suite...", "thinking");
     return;
   }
 
   if (event.type === "conversation.item.input_audio_transcription.completed") {
     const text = (event.transcript || "").trim();
-    if (text) {
-      state.transcript.push({ role: "user", text, topic: currentTopic(), question: state.currentQuestion });
-    }
+    const audioUrl = consumeLastUserAudioUrl();
     if (isRepeatRequest(text)) {
       repeatCurrentQuestion();
       return;
+    }
+    if (text) {
+      state.transcript.push({
+        role: "user",
+        text,
+        topic: currentTopic(),
+        question: state.currentQuestion,
+        questionZh: state.currentQuestionZh,
+        audioUrl,
+        audioMime: state.lastUserAudioMime
+      });
     }
     if (state.questionCount >= state.targetQuestionCount || state.currentTopicIndex === TOPIC_ORDER.length - 1) {
       finishAfterFinalAnswer();
@@ -438,7 +456,16 @@ function handleRealtimeEvent(message) {
   }
 
   if (event.type === "conversation.item.input_audio_transcription.failed") {
-    state.transcript.push({ role: "user", text: "[Transcription non disponible]", topic: currentTopic(), question: state.currentQuestion });
+    const audioUrl = consumeLastUserAudioUrl();
+    state.transcript.push({
+      role: "user",
+      text: "[Transcription non disponible]",
+      topic: currentTopic(),
+      question: state.currentQuestion,
+      questionZh: state.currentQuestionZh,
+      audioUrl,
+      audioMime: state.lastUserAudioMime
+    });
     askNextQuestion("");
     return;
   }
@@ -515,8 +542,8 @@ async function endInterviewAndReview() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        transcript: state.transcript,
-        questions: questions.map((q) => ({ section: q.section, fr: q.fr }))
+        transcript: state.transcript.map(({ audioUrl, audioMime, ...item }) => item),
+        questions: questions.map((q) => ({ section: q.section, fr: q.fr, zh: q.zh }))
       })
     });
     const data = await response.json();
@@ -559,6 +586,7 @@ function renderFeedback(feedback, fallbackText = "") {
   const riskyAnswers = Array.isArray(feedback.riskyAnswers) ? feedback.riskyAnswers : [];
   const bestAnswers = Array.isArray(feedback.bestAnswers) ? feedback.bestAnswers : [];
   const practiceQuestions = Array.isArray(feedback.practiceQuestions) ? feedback.practiceQuestions : [];
+  const qaPairs = buildQaPairs(feedback.qaPairs);
 
   els.feedbackContent.innerHTML = `
     <section class="feedback-hero ${risk}">
@@ -581,6 +609,13 @@ function renderFeedback(feedback, fallbackText = "") {
       <h3>一眼结论</h3>
       <div class="finding-list">
         ${findings.map(renderFinding).join("") || "<p class=\"empty-note\">暂无关键结论。</p>"}
+      </div>
+    </section>
+
+    <section class="feedback-section qa-section">
+      <h3>本次抽取的问题和我的回答</h3>
+      <div class="qa-list">
+        ${qaPairs.map(renderQaPair).join("") || "<p class=\"empty-note\">本轮没有可显示的问答记录。</p>"}
       </div>
     </section>
 
@@ -676,6 +711,43 @@ function renderPracticeQuestion(item) {
   `;
 }
 
+function buildQaPairs(modelPairs) {
+  const pairs = Array.isArray(modelPairs) ? modelPairs : [];
+  const userTurns = state.transcript.filter((item) => item.role === "user");
+  return userTurns.map((turn, index) => {
+    const model = pairs.find((item) => Number(item.index) === index + 1) || pairs[index] || {};
+    return {
+      index: index + 1,
+      questionFr: model.questionFr || turn.question || "",
+      questionZh: model.questionZh || turn.questionZh || findQuestionTranslation(turn.question || ""),
+      answerFr: model.answerFr || turn.text || "",
+      answerZh: model.answerZh || "",
+      audioUrl: turn.audioUrl || ""
+    };
+  });
+}
+
+function renderQaPair(item) {
+  return `
+    <article class="qa-card">
+      <div class="qa-card-top">
+        <strong>第 ${item.index} 题</strong>
+        ${item.audioUrl ? `<audio controls preload="metadata" src="${escapeHtml(item.audioUrl)}"></audio>` : "<span class=\"qa-no-audio\">没有录到音频</span>"}
+      </div>
+      <div class="qa-block">
+        <div class="qa-label">面签官问题</div>
+        <p class="qa-text-fr">${escapeHtml(item.questionFr || "未记录")}</p>
+        <p class="qa-text-zh">${escapeHtml(item.questionZh || "暂无中文翻译")}</p>
+      </div>
+      <div class="qa-block answer">
+        <div class="qa-label">我的回答</div>
+        <p class="qa-text-fr">${escapeHtml(item.answerFr || "未转写")}</p>
+        <p class="qa-text-zh">${escapeHtml(item.answerZh || "暂无中文翻译")}</p>
+      </div>
+    </article>
+  `;
+}
+
 function clampScore(value) {
   const score = Number.parseInt(value, 10);
   if (!Number.isFinite(score)) return 0;
@@ -706,6 +778,14 @@ function escapeHtml(value) {
 async function closeRealtime() {
   if (state.animationFrame) cancelAnimationFrame(state.animationFrame);
   state.animationFrame = null;
+
+  finalizeUserAudioSegment();
+
+  if (state.mediaRecorder && state.mediaRecorder.state !== "inactive") {
+    state.mediaRecorder.stop();
+  }
+  state.mediaRecorder = null;
+  state.isCapturingUserAudio = false;
 
   if (state.dc && state.dc.readyState !== "closed") state.dc.close();
   state.dc = null;
@@ -738,6 +818,7 @@ async function closeRealtime() {
 }
 
 function resetInterviewState() {
+  revokeAnswerAudioUrls();
   state.currentTopicIndex = 0;
   state.followUpCount = 0;
   state.topicQuestionCount = 0;
@@ -754,10 +835,66 @@ function resetInterviewState() {
   state.awaitingResponse = false;
   state.interviewEnded = false;
   state.textVisible = false;
+  state.currentAudioChunks = [];
+  state.lastUserAudioUrl = "";
+  state.lastUserAudioMime = "";
   els.questionText.classList.add("hidden");
   els.toggleTextBtn.classList.add("hidden");
   els.toggleTextBtn.textContent = "Afficher le texte";
   updateCounter();
+}
+
+function setupUserRecorder() {
+  if (!window.MediaRecorder || !state.localStream) return;
+  const preferredTypes = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
+  const mimeType = preferredTypes.find((type) => MediaRecorder.isTypeSupported(type));
+  try {
+    state.mediaRecorder = new MediaRecorder(state.localStream, mimeType ? { mimeType } : undefined);
+    state.lastUserAudioMime = state.mediaRecorder.mimeType || mimeType || "audio/webm";
+    state.mediaRecorder.addEventListener("dataavailable", (event) => {
+      if (state.isCapturingUserAudio && event.data?.size) {
+        state.currentAudioChunks.push(event.data);
+      }
+    });
+    state.mediaRecorder.start(250);
+  } catch (error) {
+    console.warn("Answer audio recording is not available.", error);
+    state.mediaRecorder = null;
+  }
+}
+
+function beginUserAudioSegment() {
+  state.currentAudioChunks = [];
+  state.lastUserAudioUrl = "";
+  state.lastUserAudioMime = state.mediaRecorder?.mimeType || state.lastUserAudioMime || "audio/webm";
+  state.isCapturingUserAudio = true;
+}
+
+function finishUserAudioSegmentSoon() {
+  if (!state.mediaRecorder || state.mediaRecorder.state === "inactive") return;
+  state.mediaRecorder.requestData?.();
+  window.setTimeout(() => {
+    finalizeUserAudioSegment();
+  }, 260);
+}
+
+function finalizeUserAudioSegment() {
+  state.isCapturingUserAudio = false;
+  if (state.lastUserAudioUrl || !state.currentAudioChunks.length) return state.lastUserAudioUrl;
+  const blob = new Blob(state.currentAudioChunks, { type: state.lastUserAudioMime || "audio/webm" });
+  if (!blob.size) return "";
+  state.lastUserAudioUrl = URL.createObjectURL(blob);
+  state.audioObjectUrls.push(state.lastUserAudioUrl);
+  return state.lastUserAudioUrl;
+}
+
+function consumeLastUserAudioUrl() {
+  return finalizeUserAudioSegment();
+}
+
+function revokeAnswerAudioUrls() {
+  state.audioObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  state.audioObjectUrls = [];
 }
 
 function friendlyError(error) {

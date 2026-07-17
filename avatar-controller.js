@@ -144,35 +144,35 @@ class AvatarController {
       this.environmentGroup.add(pot, plant);
     });
 
-    const deskTop = this.boxMesh(5.8, 0.16, 1.18, materials.deskTop, [0, 0.92, 0.95]);
-    const deskFront = this.boxMesh(5.8, 1.24, 0.16, materials.deskFront, [0, 0.29, 1.54]);
-    const deskLip = this.boxMesh(5.8, 0.035, 0.12, materials.paper, [0, 1.025, 1.55]);
+    const deskTop = this.boxMesh(5.8, 0.18, 1.22, materials.deskTop, [0, 0.98, 0.95]);
+    const deskFront = this.boxMesh(5.8, 1.34, 0.16, materials.deskFront, [0, 0.33, 1.54]);
+    const deskLip = this.boxMesh(5.8, 0.035, 0.12, materials.paper, [0, 1.09, 1.55]);
     this.environmentGroup.add(deskTop, deskFront, deskLip);
 
-    const laptopBase = this.boxMesh(0.72, 0.04, 0.46, materials.laptopDark, [-0.7, 1.045, 0.72]);
+    const laptopBase = this.boxMesh(0.68, 0.04, 0.42, materials.laptopDark, [-0.68, 1.105, 0.72]);
     laptopBase.rotation.y = THREE.MathUtils.degToRad(-11);
-    const laptopScreen = this.boxMesh(0.66, 0.42, 0.035, materials.laptop, [-0.74, 1.28, 0.49]);
+    const laptopScreen = this.boxMesh(0.62, 0.4, 0.035, materials.laptop, [-0.72, 1.34, 0.5]);
     laptopScreen.rotation.x = THREE.MathUtils.degToRad(-12);
     laptopScreen.rotation.y = THREE.MathUtils.degToRad(-11);
-    const screenInset = this.boxMesh(0.54, 0.32, 0.012, new THREE.MeshStandardMaterial({ color: 0xe8ecef, roughness: 0.5 }), [-0.74, 1.285, 0.468]);
+    const screenInset = this.boxMesh(0.5, 0.3, 0.012, new THREE.MeshStandardMaterial({ color: 0xe8ecef, roughness: 0.5 }), [-0.72, 1.345, 0.478]);
     screenInset.rotation.copy(laptopScreen.rotation);
     this.environmentGroup.add(laptopBase, laptopScreen, screenInset);
 
-    const keyboard = this.boxMesh(0.72, 0.022, 0.22, materials.laptopDark, [-0.18, 1.045, 0.98]);
+    const keyboard = this.boxMesh(0.52, 0.018, 0.16, materials.laptopDark, [-0.18, 1.105, 0.86]);
     keyboard.rotation.y = THREE.MathUtils.degToRad(-5);
     const keyLineMaterial = new THREE.MeshStandardMaterial({ color: 0x40444a, roughness: 0.7 });
     for (let row = 0; row < 3; row += 1) {
       for (let col = 0; col < 8; col += 1) {
-        const key = this.boxMesh(0.045, 0.006, 0.025, keyLineMaterial, [-0.43 + col * 0.07, 1.061, 0.92 + row * 0.055]);
+        const key = this.boxMesh(0.032, 0.004, 0.018, keyLineMaterial, [-0.38 + col * 0.052, 1.118, 0.81 + row * 0.038]);
         key.rotation.y = keyboard.rotation.y;
         this.environmentGroup.add(key);
       }
     }
     this.environmentGroup.add(keyboard);
 
-    const document = this.boxMesh(0.58, 0.014, 0.34, materials.paper, [0.62, 1.045, 0.74]);
+    const document = this.boxMesh(0.5, 0.014, 0.3, materials.paper, [0.6, 1.105, 0.78]);
     document.rotation.y = THREE.MathUtils.degToRad(7);
-    const badge = this.boxMesh(0.34, 0.02, 0.1, materials.paper, [0.05, 1.05, 0.75]);
+    const badge = this.boxMesh(0.3, 0.018, 0.09, materials.paper, [0.06, 1.11, 0.78]);
     this.environmentGroup.add(document, badge);
   }
 
@@ -284,11 +284,11 @@ class AvatarController {
       this.setMorphInfluence(mesh, indices.lookUpLeft, 0);
       this.setMorphInfluence(mesh, indices.lookUpRight, 0);
       this.setMorphInfluence(mesh, indices.lookInLeft, 0);
-      this.setMorphInfluence(mesh, indices.lookInRight, 0.08);
-      this.setMorphInfluence(mesh, indices.lookOutLeft, 0.08);
+      this.setMorphInfluence(mesh, indices.lookInRight, 0.05);
+      this.setMorphInfluence(mesh, indices.lookOutLeft, 0.05);
       this.setMorphInfluence(mesh, indices.lookOutRight, 0);
-      this.setMorphInfluence(mesh, indices.lookDownLeft, 0.28);
-      this.setMorphInfluence(mesh, indices.lookDownRight, 0.28);
+      this.setMorphInfluence(mesh, indices.lookDownLeft, 0.22);
+      this.setMorphInfluence(mesh, indices.lookDownRight, 0.22);
     });
   }
 
@@ -303,9 +303,9 @@ class AvatarController {
     const thinking = this.avatarMode === "thinking" ? 0.35 : 0;
     const idle = this.avatarMode === "idle" ? 0.18 : 0;
     const intensity = Math.max(speaking, thinking, idle);
-    const yaw = THREE.MathUtils.degToRad(-8) + Math.sin(time * 1.05) * 0.014 * intensity;
-    const pitch = THREE.MathUtils.degToRad(-7) + Math.sin(time * 1.7 + 0.5) * 0.01 * intensity + speaking * 0.01;
-    const roll = THREE.MathUtils.degToRad(1.5) + Math.sin(time * 0.8 + 1.2) * 0.008 * intensity;
+    const yaw = THREE.MathUtils.degToRad(-5) + Math.sin(time * 1.05) * 0.012 * intensity;
+    const pitch = THREE.MathUtils.degToRad(-5) + Math.sin(time * 1.7 + 0.5) * 0.008 * intensity + speaking * 0.008;
+    const roll = THREE.MathUtils.degToRad(0.8) + Math.sin(time * 0.8 + 1.2) * 0.006 * intensity;
 
     this.applyMotionOffset(this.headBone, pitch, yaw, roll);
     this.applyMotionOffset(this.neckBone, pitch * 0.38, yaw * 0.45, roll * 0.25);
@@ -328,16 +328,18 @@ class AvatarController {
       bone.userData.baseNeutralQuaternion = bone.quaternion.clone();
     });
 
-    const leftUpperOffset = this.pickBestLimbOffsetToward(
+    const upperArmOffsetDeg = 76;
+    const forearmBendDeg = 18;
+    const leftUpperOffset = this.pickBestLimbOffset(
       bindings.leftUpperArm,
       bindings.leftLowerArm,
-      new THREE.Vector3(-0.22, -0.48, 0.85),
+      upperArmOffsetDeg,
       "leftUpperArm"
     );
-    const rightUpperOffset = this.pickBestLimbOffsetToward(
+    const rightUpperOffset = this.pickBestLimbOffset(
       bindings.rightUpperArm,
       bindings.rightLowerArm,
-      new THREE.Vector3(0.28, -0.42, 0.86),
+      upperArmOffsetDeg,
       "rightUpperArm"
     );
 
@@ -345,17 +347,19 @@ class AvatarController {
     this.applyBoneOffset(bindings.rightUpperArm, rightUpperOffset.quaternion);
     this.model.updateMatrixWorld(true);
 
-    const leftForearmOffset = this.pickBestLimbOffsetToward(
+    const leftForearmOffset = this.pickBestLimbOffset(
       bindings.leftLowerArm,
       bindings.leftHand,
-      new THREE.Vector3(0.18, -0.06, 0.98),
-      "leftLowerArm"
+      forearmBendDeg,
+      "leftLowerArm",
+      0.45
     );
-    const rightForearmOffset = this.pickBestLimbOffsetToward(
+    const rightForearmOffset = this.pickBestLimbOffset(
       bindings.rightLowerArm,
       bindings.rightHand,
-      new THREE.Vector3(-0.16, -0.02, 0.99),
-      "rightLowerArm"
+      forearmBendDeg,
+      "rightLowerArm",
+      0.45
     );
 
     this.applyBoneOffset(bindings.leftLowerArm, leftForearmOffset.quaternion);
@@ -389,17 +393,17 @@ class AvatarController {
 
   applyDeskPose(bindings) {
     const extraOffsets = [
-      { bone: bindings.leftUpperArm, euler: new THREE.Euler(THREE.MathUtils.degToRad(5), THREE.MathUtils.degToRad(-7), THREE.MathUtils.degToRad(-4), "XYZ") },
-      { bone: bindings.rightUpperArm, euler: new THREE.Euler(THREE.MathUtils.degToRad(-2), THREE.MathUtils.degToRad(8), THREE.MathUtils.degToRad(6), "XYZ") },
-      { bone: bindings.leftLowerArm, euler: new THREE.Euler(THREE.MathUtils.degToRad(-10), THREE.MathUtils.degToRad(6), THREE.MathUtils.degToRad(10), "XYZ") },
-      { bone: bindings.rightLowerArm, euler: new THREE.Euler(THREE.MathUtils.degToRad(-4), THREE.MathUtils.degToRad(-8), THREE.MathUtils.degToRad(-7), "XYZ") }
+      { bone: bindings.leftUpperArm, euler: new THREE.Euler(THREE.MathUtils.degToRad(2), THREE.MathUtils.degToRad(-4), THREE.MathUtils.degToRad(-3), "XYZ") },
+      { bone: bindings.rightUpperArm, euler: new THREE.Euler(THREE.MathUtils.degToRad(-1), THREE.MathUtils.degToRad(5), THREE.MathUtils.degToRad(4), "XYZ") },
+      { bone: bindings.leftLowerArm, euler: new THREE.Euler(THREE.MathUtils.degToRad(4), THREE.MathUtils.degToRad(2), THREE.MathUtils.degToRad(5), "XYZ") },
+      { bone: bindings.rightLowerArm, euler: new THREE.Euler(THREE.MathUtils.degToRad(-2), THREE.MathUtils.degToRad(-3), THREE.MathUtils.degToRad(-4), "XYZ") }
     ];
 
     extraOffsets.forEach(({ bone, euler }) => this.multiplyBoneOffset(bone, euler));
 
     const offsets = [
-      { bone: bindings.leftHand, euler: new THREE.Euler(THREE.MathUtils.degToRad(5), THREE.MathUtils.degToRad(-3), THREE.MathUtils.degToRad(-7), "XYZ") },
-      { bone: bindings.rightHand, euler: new THREE.Euler(THREE.MathUtils.degToRad(-2), THREE.MathUtils.degToRad(4), THREE.MathUtils.degToRad(5), "XYZ") }
+      { bone: bindings.leftHand, euler: new THREE.Euler(THREE.MathUtils.degToRad(3), THREE.MathUtils.degToRad(-2), THREE.MathUtils.degToRad(-4), "XYZ") },
+      { bone: bindings.rightHand, euler: new THREE.Euler(THREE.MathUtils.degToRad(-2), THREE.MathUtils.degToRad(3), THREE.MathUtils.degToRad(3), "XYZ") }
     ];
 
     offsets.forEach(({ bone, euler }) => this.multiplyBoneOffset(bone, euler));

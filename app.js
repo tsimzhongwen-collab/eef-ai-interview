@@ -72,10 +72,12 @@ const state = {
   followUpCount: 0,
   topicQuestionCount: 0,
   questionCount: 0,
+  docQuestionIndex: 0,
   targetQuestionCount: TOTAL_TARGET + Math.floor(Math.random() * 5) - 2,
   askedQuestions: new Set(),
   transcript: [],
   currentQuestion: "",
+  currentQuestionItem: null,
   currentMode: "idle",
   userWasHeard: false,
   awaitingResponse: false,
@@ -124,6 +126,34 @@ function pickQuestion(topic) {
   return selected;
 }
 
+function pickDocumentQuestion() {
+  const source = questions.filter((q) => q.fr && !/quelque chose à ajouter/i.test(q.fr));
+  if (!source.length) {
+    return { section: currentTopic(), fr: "Pouvez-vous m'expliquer votre projet d'études ?" };
+  }
+
+  for (let offset = 0; offset < source.length; offset += 1) {
+    const index = (state.docQuestionIndex + offset) % source.length;
+    const candidate = source[index];
+    if (!state.askedQuestions.has(candidate.fr)) {
+      state.docQuestionIndex = index + 1;
+      state.askedQuestions.add(candidate.fr);
+      return candidate;
+    }
+  }
+
+  const fallback = source[state.docQuestionIndex % source.length];
+  state.docQuestionIndex += 1;
+  return fallback;
+}
+
+function pickDocumentFinalQuestion() {
+  return questions.find((q) => /quelque chose à ajouter/i.test(q.fr)) || {
+    section: "十二、追问与结尾反问",
+    fr: "Avez-vous quelque chose à ajouter ?"
+  };
+}
+
 function shouldAskSecondFollowUp(answer) {
   const text = (answer || "").toLowerCase();
   const vague = text.length < 45 || /je ne sais pas|pas beaucoup|c'est tout|aucune idée/.test(text);
@@ -142,6 +172,7 @@ function shouldMoveTopic(lastUserAnswer = "") {
 }
 
 function currentTopic() {
+  if (state.currentQuestionItem?.section) return state.currentQuestionItem.section;
   return TOPIC_ORDER[state.currentTopicIndex] || TOPIC_ORDER[TOPIC_ORDER.length - 1];
 }
 
@@ -169,51 +200,42 @@ function buildBaseInstruction() {
     "Ne donne pas de réponse modèle et ne fais pas d'évaluation pendant l'entretien.",
     "Pose exactement une seule question à la fois, en français oral naturel A2-B1.",
     "Chaque réponse doit contenir au maximum deux phrases; dans la plupart des cas une seule question.",
+    "Ne crée jamais de question de relance libre. Le programme fournit la question exacte à poser.",
+    "Tu dois lire la question fournie sans l'étendre et sans ajouter de nouvelle question.",
     "L'entretien vérifie surtout la cohérence du projet d'études, le parcours, le choix de la France, l'école, le programme, le français, le financement et le projet professionnel.",
     "L'art ne doit pas devenir un jury artistique; utilise l'art seulement pour vérifier que l'étudiant connaît son parcours.",
     "Ne mentionne jamais que tu es une IA."
   ].join(" ");
 }
 
-function buildTurnInstruction(lastUserAnswer = "") {
-  const topic = currentTopic();
-  const label = TOPIC_LABELS[topic] || topic;
-  const mustEnd = state.currentTopicIndex === TOPIC_ORDER.length - 1 || state.questionCount >= state.targetQuestionCount - 1;
-  const mainQuestion = pickQuestion(topic);
+function buildTurnInstruction() {
+  const mustEnd = state.questionCount >= state.targetQuestionCount - 1;
+  const questionItem = mustEnd ? pickDocumentFinalQuestion() : pickDocumentQuestion();
+  state.currentQuestionItem = questionItem;
+  const topicIndex = TOPIC_ORDER.indexOf(questionItem.section);
+  if (topicIndex >= 0) state.currentTopicIndex = topicIndex;
   const turnNumber = state.questionCount + 1;
 
   if (mustEnd) {
     return {
-      displayText: "Avez-vous une question à me poser ?",
+      displayText: questionItem.fr,
       instructions: [
         buildBaseInstruction(),
         "C'est la fin de l'entretien.",
-        "Pose exactement cette question finale et rien d'autre : Avez-vous une question à me poser ?"
+        `Pose exactement cette question finale issue du document, sans rien ajouter : ${questionItem.fr}`
       ].join(" ")
     };
   }
 
-  const isMain = state.topicQuestionCount === 0;
-  const followupLine = isMain
-    ? `Pose cette question principale, ou une version très légèrement naturalisée : "${mainQuestion}".`
-    : "Pose une seule question de relance courte, strictement liée à la dernière réponse de l'étudiant et au thème actuel.";
-
-  const artLimit = topic === "九、艺术专业与个人实践"
-    ? `Dans le module artistique, évite ces angles : ${ART_BANNED_ANGLES.join(", ")}. Après trois questions artistiques maximum, il faut changer de thème.`
-    : "";
-
   return {
-    displayText: isMain ? mainQuestion : "",
+    displayText: questionItem.fr,
     instructions: [
       buildBaseInstruction(),
       `Question ${turnNumber} sur environ ${state.targetQuestionCount}.`,
-      `Thème contrôlé par le programme : ${label}.`,
-      `Nombre de questions déjà posées dans ce thème : ${state.topicQuestionCount}. Nombre de relances déjà posées dans ce thème : ${state.followUpCount}.`,
-      followupLine,
-      artLimit,
-      lastUserAnswer ? `Dernière réponse de l'étudiant, à utiliser seulement pour choisir la relance : ${lastUserAnswer}` : "",
-      "Ne change pas toi-même de thème si le thème contrôlé est indiqué.",
-      "Réponds uniquement par la prochaine question française."
+      "La question suivante vient du document 法签.docx.",
+      `Pose exactement cette question, sans reformulation et sans relance : ${questionItem.fr}`,
+      "Ignore le contenu de la dernière réponse pour inventer une nouvelle question.",
+      "Réponds uniquement par cette question française."
     ].filter(Boolean).join(" ")
   };
 }
@@ -264,12 +286,11 @@ function repeatCurrentQuestion() {
 
 function askNextQuestion(lastUserAnswer = "") {
   if (state.interviewEnded || state.awaitingResponse) return;
-  advanceTopicIfNeeded(lastUserAnswer);
   const turn = buildTurnInstruction(lastUserAnswer);
   setQuestionText(turn.displayText);
   state.questionCount += 1;
-  state.topicQuestionCount += 1;
-  if (state.topicQuestionCount > 1) state.followUpCount += 1;
+  state.topicQuestionCount = 1;
+  state.followUpCount = 0;
   updateCounter();
   setStatus("Le jury pose une question...", "thinking");
   createResponse(turn.instructions);
@@ -712,10 +733,12 @@ function resetInterviewState() {
   state.followUpCount = 0;
   state.topicQuestionCount = 0;
   state.questionCount = 0;
+  state.docQuestionIndex = 0;
   state.targetQuestionCount = TOTAL_TARGET + Math.floor(Math.random() * 5) - 2;
   state.askedQuestions = new Set();
   state.transcript = [];
   state.currentQuestion = "";
+  state.currentQuestionItem = null;
   state.currentMode = "idle";
   state.userWasHeard = false;
   state.awaitingResponse = false;

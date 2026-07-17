@@ -87,8 +87,8 @@ class AvatarController {
     const scale = targetHeight / height;
 
     this.model.scale.setScalar(scale);
-    this.model.position.set(-center.x * scale, -box.min.y * scale - 0.42, -center.z * scale - 0.18);
-    this.model.rotation.y = 0;
+    this.model.position.set(-center.x * scale, -box.min.y * scale - 0.46, -center.z * scale - 0.18);
+    this.model.rotation.y = THREE.MathUtils.degToRad(-7);
 
     this.model.traverse((object) => {
       if (!object.isMesh) return;
@@ -106,13 +106,13 @@ class AvatarController {
     const height = Math.max(size.y, 0.01);
 
     const topY = box.max.y;
-    const lowerFrameY = box.min.y + height * 0.58;
+    const lowerFrameY = box.min.y + height * 0.6;
     const visibleHeight = (topY - lowerFrameY) / 0.88;
     const targetY = topY - visibleHeight * 0.44;
     const distance = (visibleHeight * 0.5) / Math.tan(THREE.MathUtils.degToRad(this.camera.fov * 0.5));
 
-    this.camera.position.set(center.x, targetY + 0.02, box.max.z + distance * 1.02);
-    this.camera.lookAt(center.x, targetY - 0.02, center.z);
+    this.camera.position.set(center.x - 0.05, targetY + 0.01, box.max.z + distance * 1.02);
+    this.camera.lookAt(center.x - 0.1, targetY - 0.04, center.z);
     this.camera.updateProjectionMatrix();
   }
 
@@ -144,23 +144,35 @@ class AvatarController {
       this.environmentGroup.add(pot, plant);
     });
 
-    const deskTop = this.boxMesh(5.8, 0.16, 1.18, materials.deskTop, [0, 0.86, 0.95]);
-    const deskFront = this.boxMesh(5.8, 1.18, 0.16, materials.deskFront, [0, 0.25, 1.54]);
-    const deskLip = this.boxMesh(5.8, 0.035, 0.12, materials.paper, [0, 0.965, 1.55]);
+    const deskTop = this.boxMesh(5.8, 0.16, 1.18, materials.deskTop, [0, 0.92, 0.95]);
+    const deskFront = this.boxMesh(5.8, 1.24, 0.16, materials.deskFront, [0, 0.29, 1.54]);
+    const deskLip = this.boxMesh(5.8, 0.035, 0.12, materials.paper, [0, 1.025, 1.55]);
     this.environmentGroup.add(deskTop, deskFront, deskLip);
 
-    const laptopBase = this.boxMesh(0.72, 0.04, 0.46, materials.laptopDark, [-0.86, 0.985, 0.72]);
+    const laptopBase = this.boxMesh(0.72, 0.04, 0.46, materials.laptopDark, [-0.7, 1.045, 0.72]);
     laptopBase.rotation.y = THREE.MathUtils.degToRad(-11);
-    const laptopScreen = this.boxMesh(0.66, 0.42, 0.035, materials.laptop, [-0.9, 1.22, 0.49]);
+    const laptopScreen = this.boxMesh(0.66, 0.42, 0.035, materials.laptop, [-0.74, 1.28, 0.49]);
     laptopScreen.rotation.x = THREE.MathUtils.degToRad(-12);
     laptopScreen.rotation.y = THREE.MathUtils.degToRad(-11);
-    const screenInset = this.boxMesh(0.54, 0.32, 0.012, new THREE.MeshStandardMaterial({ color: 0xe8ecef, roughness: 0.5 }), [-0.9, 1.225, 0.468]);
+    const screenInset = this.boxMesh(0.54, 0.32, 0.012, new THREE.MeshStandardMaterial({ color: 0xe8ecef, roughness: 0.5 }), [-0.74, 1.285, 0.468]);
     screenInset.rotation.copy(laptopScreen.rotation);
     this.environmentGroup.add(laptopBase, laptopScreen, screenInset);
 
-    const document = this.boxMesh(0.58, 0.014, 0.34, materials.paper, [0.62, 0.985, 0.74]);
+    const keyboard = this.boxMesh(0.72, 0.022, 0.22, materials.laptopDark, [-0.18, 1.045, 0.98]);
+    keyboard.rotation.y = THREE.MathUtils.degToRad(-5);
+    const keyLineMaterial = new THREE.MeshStandardMaterial({ color: 0x40444a, roughness: 0.7 });
+    for (let row = 0; row < 3; row += 1) {
+      for (let col = 0; col < 8; col += 1) {
+        const key = this.boxMesh(0.045, 0.006, 0.025, keyLineMaterial, [-0.43 + col * 0.07, 1.061, 0.92 + row * 0.055]);
+        key.rotation.y = keyboard.rotation.y;
+        this.environmentGroup.add(key);
+      }
+    }
+    this.environmentGroup.add(keyboard);
+
+    const document = this.boxMesh(0.58, 0.014, 0.34, materials.paper, [0.62, 1.045, 0.74]);
     document.rotation.y = THREE.MathUtils.degToRad(7);
-    const badge = this.boxMesh(0.34, 0.02, 0.1, materials.paper, [0.05, 0.99, 0.75]);
+    const badge = this.boxMesh(0.34, 0.02, 0.1, materials.paper, [0.05, 1.05, 0.75]);
     this.environmentGroup.add(document, badge);
   }
 
@@ -271,12 +283,12 @@ class AvatarController {
     this.eyeControls.forEach(({ mesh, indices }) => {
       this.setMorphInfluence(mesh, indices.lookUpLeft, 0);
       this.setMorphInfluence(mesh, indices.lookUpRight, 0);
-      this.setMorphInfluence(mesh, indices.lookInLeft, 0.02);
-      this.setMorphInfluence(mesh, indices.lookInRight, 0.02);
-      this.setMorphInfluence(mesh, indices.lookOutLeft, 0);
+      this.setMorphInfluence(mesh, indices.lookInLeft, 0);
+      this.setMorphInfluence(mesh, indices.lookInRight, 0.08);
+      this.setMorphInfluence(mesh, indices.lookOutLeft, 0.08);
       this.setMorphInfluence(mesh, indices.lookOutRight, 0);
-      this.setMorphInfluence(mesh, indices.lookDownLeft, 0.16);
-      this.setMorphInfluence(mesh, indices.lookDownRight, 0.16);
+      this.setMorphInfluence(mesh, indices.lookDownLeft, 0.28);
+      this.setMorphInfluence(mesh, indices.lookDownRight, 0.28);
     });
   }
 
@@ -291,12 +303,12 @@ class AvatarController {
     const thinking = this.avatarMode === "thinking" ? 0.35 : 0;
     const idle = this.avatarMode === "idle" ? 0.18 : 0;
     const intensity = Math.max(speaking, thinking, idle);
-    const yaw = Math.sin(time * 1.05) * 0.018 * intensity;
-    const pitch = Math.sin(time * 1.7 + 0.5) * 0.012 * intensity + speaking * 0.018;
-    const roll = Math.sin(time * 0.8 + 1.2) * 0.01 * intensity;
+    const yaw = THREE.MathUtils.degToRad(-8) + Math.sin(time * 1.05) * 0.014 * intensity;
+    const pitch = THREE.MathUtils.degToRad(-7) + Math.sin(time * 1.7 + 0.5) * 0.01 * intensity + speaking * 0.01;
+    const roll = THREE.MathUtils.degToRad(1.5) + Math.sin(time * 0.8 + 1.2) * 0.008 * intensity;
 
-    this.applyMotionOffset(this.headBone, pitch - 0.018, yaw, roll);
-    this.applyMotionOffset(this.neckBone, pitch * 0.35 - 0.008, yaw * 0.35, roll * 0.25);
+    this.applyMotionOffset(this.headBone, pitch, yaw, roll);
+    this.applyMotionOffset(this.neckBone, pitch * 0.38, yaw * 0.45, roll * 0.25);
   }
 
   applyMotionOffset(bone, pitch, yaw, roll) {
@@ -316,18 +328,16 @@ class AvatarController {
       bone.userData.baseNeutralQuaternion = bone.quaternion.clone();
     });
 
-    const upperArmOffsetDeg = 76;
-    const forearmBendDeg = 18;
-    const leftUpperOffset = this.pickBestLimbOffset(
+    const leftUpperOffset = this.pickBestLimbOffsetToward(
       bindings.leftUpperArm,
       bindings.leftLowerArm,
-      upperArmOffsetDeg,
+      new THREE.Vector3(-0.22, -0.48, 0.85),
       "leftUpperArm"
     );
-    const rightUpperOffset = this.pickBestLimbOffset(
+    const rightUpperOffset = this.pickBestLimbOffsetToward(
       bindings.rightUpperArm,
       bindings.rightLowerArm,
-      upperArmOffsetDeg,
+      new THREE.Vector3(0.28, -0.42, 0.86),
       "rightUpperArm"
     );
 
@@ -335,19 +345,17 @@ class AvatarController {
     this.applyBoneOffset(bindings.rightUpperArm, rightUpperOffset.quaternion);
     this.model.updateMatrixWorld(true);
 
-    const leftForearmOffset = this.pickBestLimbOffset(
+    const leftForearmOffset = this.pickBestLimbOffsetToward(
       bindings.leftLowerArm,
       bindings.leftHand,
-      forearmBendDeg,
-      "leftLowerArm",
-      0.45
+      new THREE.Vector3(0.18, -0.06, 0.98),
+      "leftLowerArm"
     );
-    const rightForearmOffset = this.pickBestLimbOffset(
+    const rightForearmOffset = this.pickBestLimbOffsetToward(
       bindings.rightLowerArm,
       bindings.rightHand,
-      forearmBendDeg,
-      "rightLowerArm",
-      0.45
+      new THREE.Vector3(-0.16, -0.02, 0.99),
+      "rightLowerArm"
     );
 
     this.applyBoneOffset(bindings.leftLowerArm, leftForearmOffset.quaternion);
@@ -459,6 +467,56 @@ class AvatarController {
       .replace("upperarm", "arm")
       .replace("lowerarm", "forearm")
       .replace("forearm", "forearm");
+  }
+
+  pickBestLimbOffsetToward(bone, childBone, desiredDirection, role) {
+    if (!bone || !childBone) {
+      return {
+        quaternion: new THREE.Quaternion(),
+        label: `${role}: none`
+      };
+    }
+
+    const baseQuaternion = bone.userData.baseNeutralQuaternion || bone.quaternion.clone();
+    const desired = desiredDirection.clone().normalize();
+    const axes = [
+      new THREE.Vector3(1, 0, 0),
+      new THREE.Vector3(0, 1, 0),
+      new THREE.Vector3(0, 0, 1)
+    ];
+    const axisNames = ["x", "y", "z"];
+    const degrees = [-125, -105, -85, -65, -45, -25, 25, 45, 65, 85, 105, 125];
+    const candidates = [];
+
+    axes.forEach((axis, axisIndex) => {
+      degrees.forEach((degree) => {
+        const quaternion = new THREE.Quaternion().setFromAxisAngle(axis, THREE.MathUtils.degToRad(degree));
+        bone.quaternion.copy(baseQuaternion).multiply(quaternion);
+        this.model.updateMatrixWorld(true);
+
+        const start = new THREE.Vector3();
+        const end = new THREE.Vector3();
+        bone.getWorldPosition(start);
+        childBone.getWorldPosition(end);
+        const limbDirection = end.sub(start).normalize();
+        const score = 1 - limbDirection.dot(desired);
+
+        candidates.push({
+          quaternion,
+          score,
+          label: `${role}: local ${axisNames[axisIndex]} ${degree}deg toward desk`
+        });
+      });
+    });
+
+    bone.quaternion.copy(baseQuaternion);
+    this.model.updateMatrixWorld(true);
+
+    candidates.sort((a, b) => a.score - b.score);
+    return candidates[0] || {
+      quaternion: new THREE.Quaternion(),
+      label: `${role}: none`
+    };
   }
 
   pickBestLimbOffset(bone, childBone, degrees, role, verticalWeight = 1) {

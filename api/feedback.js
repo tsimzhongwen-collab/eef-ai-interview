@@ -12,6 +12,22 @@ function extractText(data) {
   return parts.join("\n").trim();
 }
 
+function extractJsonObject(text) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const match = trimmed.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    try {
+      return JSON.parse(match[0]);
+    } catch {
+      return null;
+    }
+  }
+}
+
 export const config = {
   api: {
     bodyParser: { sizeLimit: "1mb" }
@@ -54,8 +70,16 @@ export default async function handler(req, res) {
           "正式面签过程中没有纠错；现在面签结束后，用简体中文复盘。",
           "法语建议只能给 B1 级自然口语，不要改成 C1 书面法语。",
           "引用用户短句时必须短，只引用必要片段。",
-          "结构必须严格使用：一、整体判断；二、听懂与应答；三、法语表达问题；四、可能引发不利追问的回答；五、本轮最危险的3个回答；六、本轮表现最好的3个回答；七、下一轮最该练的3个问题。",
-          "第七部分必须从给定 questions.js 题库中选择 3 个法语问题。"
+          "输出必须是严格 JSON，不要 Markdown，不要代码块，不要额外解释。",
+          "JSON 顶层结构必须包含：overallScore, riskLevel, headline, summary, scoreCards, keyFindings, languageIssues, riskyAnswers, bestAnswers, practiceQuestions。",
+          "overallScore 是 0-100 整数。riskLevel 只能是 low、medium、high。",
+          "scoreCards 必须包含 4 项：听懂与应答、学习计划连贯性、法语表达、风险控制。每项包含 label、score、status、note。status 只能是 good、warning、danger。",
+          "keyFindings 给 3-5 条最重要结论，每条包含 title、detail、status。",
+          "languageIssues 最多 5 条，每条包含 original、suggestion、explanation。original 必须来自用户实际短句。",
+          "riskyAnswers 最多 3 条，按风险排序，每条包含 answer、risk、fix。",
+          "bestAnswers 最多 3 条，每条包含 answer、why。",
+          "practiceQuestions 必须从给定 questions.js 题库中选择 3 个法语问题，每条包含 fr、reason。",
+          "所有中文句子要短，适合网页卡片显示；结论要直观。"
         ].join("\n"),
         input: [
           {
@@ -75,7 +99,9 @@ export default async function handler(req, res) {
       return res.status(response.status).json({ error: data?.error?.message || "Feedback request failed" });
     }
 
-    return res.status(200).json({ text: extractText(data) });
+    const text = extractText(data);
+    const feedback = extractJsonObject(text);
+    return res.status(200).json({ text, feedback });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: error.message || "Server error" });

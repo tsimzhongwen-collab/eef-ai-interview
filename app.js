@@ -478,7 +478,7 @@ async function endInterviewAndReview() {
   await closeRealtime();
   els.interviewView.classList.add("hidden");
   els.feedbackView.classList.remove("hidden");
-  els.feedbackContent.textContent = "正在根据本轮完整对话生成中文复盘...";
+  renderFeedbackLoading();
 
   try {
     const response = await fetch("/api/feedback", {
@@ -491,11 +491,186 @@ async function endInterviewAndReview() {
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "复盘生成失败");
-    els.feedbackContent.textContent = data.text;
+    renderFeedback(data.feedback, data.text);
   } catch (error) {
     console.error(error);
-    els.feedbackContent.textContent = `复盘生成失败：${friendlyError(error)}\n\n本轮对话记录已保留在浏览器内存中，但没有继续消耗 Realtime 连接。`;
+    renderFeedbackError(`复盘生成失败：${friendlyError(error)}\n\n本轮对话记录已保留在浏览器内存中，但没有继续消耗 Realtime 连接。`);
   }
+}
+
+function renderFeedbackLoading() {
+  els.feedbackContent.className = "feedback-dashboard feedback-loading";
+  els.feedbackContent.innerHTML = `
+    <div class="loading-card">
+      <div class="loading-title">正在生成中文复盘...</div>
+      <div class="loading-subtitle">正在整理听懂程度、表达风险和下一轮重点。</div>
+    </div>
+  `;
+}
+
+function renderFeedbackError(message) {
+  els.feedbackContent.className = "feedback-content";
+  els.feedbackContent.textContent = message;
+}
+
+function renderFeedback(feedback, fallbackText = "") {
+  if (!feedback || typeof feedback !== "object") {
+    els.feedbackContent.className = "feedback-content";
+    els.feedbackContent.textContent = fallbackText || "复盘生成完成，但格式无法解析。";
+    return;
+  }
+
+  els.feedbackContent.className = "feedback-dashboard";
+  const score = clampScore(feedback.overallScore);
+  const risk = normalizeStatus(feedback.riskLevel);
+  const scoreCards = Array.isArray(feedback.scoreCards) ? feedback.scoreCards : [];
+  const findings = Array.isArray(feedback.keyFindings) ? feedback.keyFindings : [];
+  const languageIssues = Array.isArray(feedback.languageIssues) ? feedback.languageIssues : [];
+  const riskyAnswers = Array.isArray(feedback.riskyAnswers) ? feedback.riskyAnswers : [];
+  const bestAnswers = Array.isArray(feedback.bestAnswers) ? feedback.bestAnswers : [];
+  const practiceQuestions = Array.isArray(feedback.practiceQuestions) ? feedback.practiceQuestions : [];
+
+  els.feedbackContent.innerHTML = `
+    <section class="feedback-hero ${risk}">
+      <div>
+        <div class="feedback-kicker">总评分</div>
+        <div class="feedback-score">${score}<span>/100</span></div>
+      </div>
+      <div class="feedback-headline">
+        <span class="risk-pill ${risk}">${riskLabel(risk)}</span>
+        <h3>${escapeHtml(feedback.headline || "本轮表现复盘")}</h3>
+        <p>${escapeHtml(feedback.summary || "请优先查看分项评分和高风险回答。")}</p>
+      </div>
+    </section>
+
+    <section class="score-grid">
+      ${scoreCards.map(renderScoreCard).join("")}
+    </section>
+
+    <section class="feedback-section">
+      <h3>一眼结论</h3>
+      <div class="finding-list">
+        ${findings.map(renderFinding).join("") || "<p class=\"empty-note\">暂无关键结论。</p>"}
+      </div>
+    </section>
+
+    <section class="feedback-columns">
+      <div class="feedback-section">
+        <h3>法语表达问题</h3>
+        ${languageIssues.map(renderLanguageIssue).join("") || "<p class=\"empty-note\">本轮没有明显需要单独列出的法语问题。</p>"}
+      </div>
+      <div class="feedback-section">
+        <h3>高风险回答</h3>
+        ${riskyAnswers.map(renderRiskyAnswer).join("") || "<p class=\"empty-note\">没有发现明显高风险回答。</p>"}
+      </div>
+    </section>
+
+    <section class="feedback-columns">
+      <div class="feedback-section">
+        <h3>表现最好的回答</h3>
+        ${bestAnswers.map(renderBestAnswer).join("") || "<p class=\"empty-note\">本轮可继续积累更完整的亮点回答。</p>"}
+      </div>
+      <div class="feedback-section">
+        <h3>下一轮最该练</h3>
+        ${practiceQuestions.map(renderPracticeQuestion).join("") || "<p class=\"empty-note\">暂无推荐题目。</p>"}
+      </div>
+    </section>
+  `;
+}
+
+function renderScoreCard(card) {
+  const status = normalizeStatus(card.status);
+  const score = clampScore(card.score);
+  return `
+    <article class="score-card ${status}">
+      <div class="score-card-top">
+        <strong>${escapeHtml(card.label || "分项")}</strong>
+        <span>${score}</span>
+      </div>
+      <div class="score-bar"><i style="width:${score}%"></i></div>
+      <p>${escapeHtml(card.note || "")}</p>
+    </article>
+  `;
+}
+
+function renderFinding(item) {
+  const status = normalizeStatus(item.status);
+  return `
+    <article class="finding-item ${status}">
+      <span></span>
+      <div>
+        <strong>${escapeHtml(item.title || "结论")}</strong>
+        <p>${escapeHtml(item.detail || "")}</p>
+      </div>
+    </article>
+  `;
+}
+
+function renderLanguageIssue(item) {
+  return `
+    <article class="detail-card">
+      <div class="quote-label">你的表达</div>
+      <p class="quote-text">「${escapeHtml(item.original || "")}」</p>
+      <div class="quote-label">建议</div>
+      <p class="suggestion-text">「${escapeHtml(item.suggestion || "")}」</p>
+      <p>${escapeHtml(item.explanation || "")}</p>
+    </article>
+  `;
+}
+
+function renderRiskyAnswer(item) {
+  return `
+    <article class="detail-card danger">
+      <strong>${escapeHtml(item.risk || "可能引发追问")}</strong>
+      <p>「${escapeHtml(item.answer || "")}」</p>
+      <p class="fix-text">${escapeHtml(item.fix || "")}</p>
+    </article>
+  `;
+}
+
+function renderBestAnswer(item) {
+  return `
+    <article class="detail-card good">
+      <p>「${escapeHtml(item.answer || "")}」</p>
+      <p>${escapeHtml(item.why || "")}</p>
+    </article>
+  `;
+}
+
+function renderPracticeQuestion(item) {
+  return `
+    <article class="practice-card">
+      <strong>${escapeHtml(item.fr || "")}</strong>
+      <p>${escapeHtml(item.reason || "")}</p>
+    </article>
+  `;
+}
+
+function clampScore(value) {
+  const score = Number.parseInt(value, 10);
+  if (!Number.isFinite(score)) return 0;
+  return Math.max(0, Math.min(100, score));
+}
+
+function normalizeStatus(status) {
+  if (status === "high" || status === "danger") return "danger";
+  if (status === "medium" || status === "warning") return "warning";
+  return "good";
+}
+
+function riskLabel(status) {
+  if (status === "danger") return "风险较高";
+  if (status === "warning") return "需要注意";
+  return "状态稳定";
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 async function closeRealtime() {

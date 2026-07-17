@@ -68,10 +68,14 @@ h2{font-size:clamp(34px,6vw,58px)}
   overflow:hidden;
   border:1px solid var(--line);
   border-radius:12px;
-  background:#e9e7df;
+  background:
+    linear-gradient(180deg,#f6f5f0 0%,#ece8dd 58%,#d7cbb9 100%);
   box-shadow:
     inset 0 0 0 1px rgba(255,255,255,.6),
     0 18px 55px rgba(58,54,45,.08);
+}
+.office-bg,.desk{
+  display:none;
 }
 .office-bg{
   position:absolute;
@@ -224,17 +228,16 @@ h2{font-size:clamp(34px,6vw,58px)}
 }
 .officer{
   position:absolute;
-  left:50%;
-  bottom:18px;
-  width:min(560px,80vw);
-  height:min(560px,74vh);
-  transform:translateX(-50%);
+  inset:0;
+  width:100%;
+  height:100%;
+  transform:none;
   animation:breath 4.8s ease-in-out infinite;
   filter:drop-shadow(0 30px 36px rgba(45,41,35,.24));
   z-index:1;
 }
 @keyframes breath{
-  50%{transform:translateX(-50%) translateY(4px)}
+  50%{transform:translateY(3px)}
 }
 .avatar-mount{
   position:relative;
@@ -667,10 +670,7 @@ h2{font-size:clamp(34px,6vw,58px)}
   .app-shell{padding:14px}
   .topbar{align-items:flex-start}
   .officer-stage{height:58vh;min-height:390px}
-  .officer{width:360px;height:430px;bottom:24px}
-  .desk{height:128px}
-  .folder{bottom:30px;width:100px}
-  .desk-plate{bottom:32px}
+  .officer{inset:0;width:100%;height:100%;bottom:auto}
   .control-panel{grid-template-columns:1fr auto}
   .text-toggle{grid-column:1 / -1;height:50px}
   .status-value{font-size:16px}

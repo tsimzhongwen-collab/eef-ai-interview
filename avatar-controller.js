@@ -17,6 +17,7 @@ class AvatarController {
     this.clock = new THREE.Clock();
     this.mixer = null;
     this.model = null;
+    this.environmentGroup = new THREE.Group();
     this.poseBindings = null;
     this.faceControls = [];
     this.eyeControls = [];
@@ -49,6 +50,7 @@ class AvatarController {
     this.normalizeModel();
     this.applyNeutralInterviewPose();
     this.bindExpressionControls();
+    this.buildInterviewSet();
     this.frameChestUp();
     this.reportModelData(gltf);
     this.mount.classList.add("is-ready");
@@ -70,6 +72,10 @@ class AvatarController {
     const rim = new THREE.DirectionalLight(0xfff2dd, 1.25);
     rim.position.set(0.2, 2.4, -2.6);
     this.scene.add(rim);
+
+    const deskSoft = new THREE.DirectionalLight(0xffffff, 1.45);
+    deskSoft.position.set(0, 1.8, 2.4);
+    this.scene.add(deskSoft);
   }
 
   normalizeModel() {
@@ -100,14 +106,70 @@ class AvatarController {
     const height = Math.max(size.y, 0.01);
 
     const topY = box.max.y;
-    const lowerFrameY = box.min.y + height * 0.46;
+    const lowerFrameY = box.min.y + height * 0.38;
     const visibleHeight = (topY - lowerFrameY) / 0.9;
     const targetY = topY - visibleHeight * 0.4;
     const distance = (visibleHeight * 0.5) / Math.tan(THREE.MathUtils.degToRad(this.camera.fov * 0.5));
 
-    this.camera.position.set(center.x, targetY, box.max.z + distance * 1.08);
-    this.camera.lookAt(center.x, targetY, center.z);
+    this.camera.position.set(center.x, targetY + 0.03, box.max.z + distance * 1.18);
+    this.camera.lookAt(center.x, targetY - 0.03, center.z);
     this.camera.updateProjectionMatrix();
+  }
+
+  buildInterviewSet() {
+    this.scene.add(this.environmentGroup);
+
+    const materials = {
+      wall: new THREE.MeshStandardMaterial({ color: 0xf2f1ec, roughness: 0.9, metalness: 0.02 }),
+      sill: new THREE.MeshStandardMaterial({ color: 0xd7d0c3, roughness: 0.85 }),
+      deskTop: new THREE.MeshStandardMaterial({ color: 0xc9bca9, roughness: 0.72 }),
+      deskFront: new THREE.MeshStandardMaterial({ color: 0xb7aa98, roughness: 0.82 }),
+      laptop: new THREE.MeshStandardMaterial({ color: 0xc9cdd0, roughness: 0.52, metalness: 0.25 }),
+      laptopDark: new THREE.MeshStandardMaterial({ color: 0x2a2c31, roughness: 0.55, metalness: 0.2 }),
+      paper: new THREE.MeshStandardMaterial({ color: 0xf4f0e8, roughness: 0.86 }),
+      plant: new THREE.MeshStandardMaterial({ color: 0x47694f, roughness: 0.78 }),
+      pot: new THREE.MeshStandardMaterial({ color: 0xd9d4c8, roughness: 0.8 })
+    };
+
+    const wall = this.boxMesh(5.8, 2.4, 0.06, materials.wall, [0, 1.15, -0.72]);
+    const sill = this.boxMesh(3.3, 0.16, 0.18, materials.sill, [0, 1.72, -0.54]);
+    const windowGlow = this.boxMesh(2.8, 1.05, 0.025, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.32 }), [0, 1.94, -0.575]);
+    this.environmentGroup.add(wall, sill, windowGlow);
+
+    [-0.85, 0.85].forEach((x) => {
+      const pot = this.boxMesh(0.18, 0.24, 0.18, materials.pot, [x, 1.92, -0.42]);
+      const plant = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 8), materials.plant);
+      plant.position.set(x, 2.08, -0.42);
+      plant.scale.set(1.1, 0.85, 1.0);
+      this.environmentGroup.add(pot, plant);
+    });
+
+    const deskTop = this.boxMesh(5.8, 0.16, 1.05, materials.deskTop, [0, 0.62, 1.05]);
+    const deskFront = this.boxMesh(5.8, 0.92, 0.14, materials.deskFront, [0, 0.14, 1.54]);
+    const deskLip = this.boxMesh(5.8, 0.035, 0.12, materials.paper, [0, 0.72, 1.55]);
+    this.environmentGroup.add(deskTop, deskFront, deskLip);
+
+    const laptopBase = this.boxMesh(1.0, 0.055, 0.68, materials.laptopDark, [-0.72, 0.74, 0.74]);
+    laptopBase.rotation.y = THREE.MathUtils.degToRad(-8);
+    const laptopScreen = this.boxMesh(0.92, 0.62, 0.045, materials.laptop, [-0.78, 1.08, 0.45]);
+    laptopScreen.rotation.x = THREE.MathUtils.degToRad(-11);
+    laptopScreen.rotation.y = THREE.MathUtils.degToRad(-8);
+    const screenInset = this.boxMesh(0.78, 0.48, 0.015, new THREE.MeshStandardMaterial({ color: 0xe8ecef, roughness: 0.5 }), [-0.78, 1.09, 0.421]);
+    screenInset.rotation.copy(laptopScreen.rotation);
+    this.environmentGroup.add(laptopBase, laptopScreen, screenInset);
+
+    const document = this.boxMesh(0.72, 0.018, 0.42, materials.paper, [0.75, 0.73, 0.78]);
+    document.rotation.y = THREE.MathUtils.degToRad(7);
+    const badge = this.boxMesh(0.44, 0.025, 0.12, materials.paper, [0.1, 0.735, 0.78]);
+    this.environmentGroup.add(document, badge);
+  }
+
+  boxMesh(width, height, depth, material, position) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
+    mesh.position.set(position[0], position[1], position[2]);
+    mesh.castShadow = false;
+    mesh.receiveShadow = true;
+    return mesh;
   }
 
   bindExpressionControls() {
@@ -290,7 +352,7 @@ class AvatarController {
 
     this.applyBoneOffset(bindings.leftLowerArm, leftForearmOffset.quaternion);
     this.applyBoneOffset(bindings.rightLowerArm, rightForearmOffset.quaternion);
-    this.applyHandAsymmetry(bindings);
+    this.applyDeskPose(bindings);
 
     if (bindings.spine && !bindings.spine.userData.baseNeutralQuaternion) {
       bindings.spine.userData.baseNeutralQuaternion = bindings.spine.quaternion.clone();
@@ -311,25 +373,35 @@ class AvatarController {
       rightUpperArm: rightUpperOffset.label,
       leftForeArm: leftForearmOffset.label,
       rightForeArm: rightForearmOffset.label,
-      leftHand: "local euler 5deg, -3deg, -7deg",
-      rightHand: "local euler -2deg, 4deg, 5deg"
+      leftHand: "desk pose asymmetry, relaxed on table",
+      rightHand: "desk pose asymmetry, relaxed on table"
     });
     console.groupEnd();
   }
 
-  applyHandAsymmetry(bindings) {
+  applyDeskPose(bindings) {
+    const extraOffsets = [
+      { bone: bindings.leftUpperArm, euler: new THREE.Euler(THREE.MathUtils.degToRad(5), THREE.MathUtils.degToRad(-7), THREE.MathUtils.degToRad(-4), "XYZ") },
+      { bone: bindings.rightUpperArm, euler: new THREE.Euler(THREE.MathUtils.degToRad(-2), THREE.MathUtils.degToRad(8), THREE.MathUtils.degToRad(6), "XYZ") },
+      { bone: bindings.leftLowerArm, euler: new THREE.Euler(THREE.MathUtils.degToRad(-10), THREE.MathUtils.degToRad(6), THREE.MathUtils.degToRad(10), "XYZ") },
+      { bone: bindings.rightLowerArm, euler: new THREE.Euler(THREE.MathUtils.degToRad(-4), THREE.MathUtils.degToRad(-8), THREE.MathUtils.degToRad(-7), "XYZ") }
+    ];
+
+    extraOffsets.forEach(({ bone, euler }) => this.multiplyBoneOffset(bone, euler));
+
     const offsets = [
       { bone: bindings.leftHand, euler: new THREE.Euler(THREE.MathUtils.degToRad(5), THREE.MathUtils.degToRad(-3), THREE.MathUtils.degToRad(-7), "XYZ") },
       { bone: bindings.rightHand, euler: new THREE.Euler(THREE.MathUtils.degToRad(-2), THREE.MathUtils.degToRad(4), THREE.MathUtils.degToRad(5), "XYZ") }
     ];
 
-    offsets.forEach(({ bone, euler }) => {
-      if (!bone) return;
-      const baseQuaternion = bone.userData.baseNeutralQuaternion || bone.quaternion.clone();
-      bone.userData.baseNeutralQuaternion = baseQuaternion.clone();
-      const offset = new THREE.Quaternion().setFromEuler(euler);
-      bone.quaternion.copy(baseQuaternion).multiply(offset);
-    });
+    offsets.forEach(({ bone, euler }) => this.multiplyBoneOffset(bone, euler));
+    this.model.updateMatrixWorld(true);
+  }
+
+  multiplyBoneOffset(bone, euler) {
+    if (!bone) return;
+    const offset = new THREE.Quaternion().setFromEuler(euler);
+    bone.quaternion.multiply(offset);
   }
 
   getSkeletonBones() {

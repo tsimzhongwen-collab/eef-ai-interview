@@ -87,7 +87,7 @@ class AvatarController {
     const scale = targetHeight / height;
 
     this.model.scale.setScalar(scale);
-    this.model.position.set(-center.x * scale, -box.min.y * scale, -center.z * scale);
+    this.model.position.set(-center.x * scale, -box.min.y * scale - 0.42, -center.z * scale - 0.18);
     this.model.rotation.y = 0;
 
     this.model.traverse((object) => {
@@ -106,13 +106,13 @@ class AvatarController {
     const height = Math.max(size.y, 0.01);
 
     const topY = box.max.y;
-    const lowerFrameY = box.min.y + height * 0.38;
-    const visibleHeight = (topY - lowerFrameY) / 0.9;
-    const targetY = topY - visibleHeight * 0.4;
+    const lowerFrameY = box.min.y + height * 0.58;
+    const visibleHeight = (topY - lowerFrameY) / 0.88;
+    const targetY = topY - visibleHeight * 0.44;
     const distance = (visibleHeight * 0.5) / Math.tan(THREE.MathUtils.degToRad(this.camera.fov * 0.5));
 
-    this.camera.position.set(center.x, targetY + 0.03, box.max.z + distance * 1.18);
-    this.camera.lookAt(center.x, targetY - 0.03, center.z);
+    this.camera.position.set(center.x, targetY + 0.02, box.max.z + distance * 1.02);
+    this.camera.lookAt(center.x, targetY - 0.02, center.z);
     this.camera.updateProjectionMatrix();
   }
 
@@ -131,36 +131,36 @@ class AvatarController {
       pot: new THREE.MeshStandardMaterial({ color: 0xd9d4c8, roughness: 0.8 })
     };
 
-    const wall = this.boxMesh(5.8, 2.4, 0.06, materials.wall, [0, 1.15, -0.72]);
-    const sill = this.boxMesh(3.3, 0.16, 0.18, materials.sill, [0, 1.72, -0.54]);
-    const windowGlow = this.boxMesh(2.8, 1.05, 0.025, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.32 }), [0, 1.94, -0.575]);
+    const wall = this.boxMesh(5.8, 2.4, 0.06, materials.wall, [0, 1.05, -0.9]);
+    const sill = this.boxMesh(3.3, 0.14, 0.18, materials.sill, [0, 1.62, -0.72]);
+    const windowGlow = this.boxMesh(2.8, 0.88, 0.025, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28 }), [0, 1.86, -0.755]);
     this.environmentGroup.add(wall, sill, windowGlow);
 
     [-0.85, 0.85].forEach((x) => {
-      const pot = this.boxMesh(0.18, 0.24, 0.18, materials.pot, [x, 1.92, -0.42]);
+      const pot = this.boxMesh(0.14, 0.19, 0.14, materials.pot, [x, 1.76, -0.58]);
       const plant = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 8), materials.plant);
-      plant.position.set(x, 2.08, -0.42);
-      plant.scale.set(1.1, 0.85, 1.0);
+      plant.position.set(x, 1.9, -0.58);
+      plant.scale.set(0.8, 0.62, 0.75);
       this.environmentGroup.add(pot, plant);
     });
 
-    const deskTop = this.boxMesh(5.8, 0.16, 1.05, materials.deskTop, [0, 0.62, 1.05]);
-    const deskFront = this.boxMesh(5.8, 0.92, 0.14, materials.deskFront, [0, 0.14, 1.54]);
-    const deskLip = this.boxMesh(5.8, 0.035, 0.12, materials.paper, [0, 0.72, 1.55]);
+    const deskTop = this.boxMesh(5.8, 0.16, 1.18, materials.deskTop, [0, 0.86, 0.95]);
+    const deskFront = this.boxMesh(5.8, 1.18, 0.16, materials.deskFront, [0, 0.25, 1.54]);
+    const deskLip = this.boxMesh(5.8, 0.035, 0.12, materials.paper, [0, 0.965, 1.55]);
     this.environmentGroup.add(deskTop, deskFront, deskLip);
 
-    const laptopBase = this.boxMesh(1.0, 0.055, 0.68, materials.laptopDark, [-0.72, 0.74, 0.74]);
-    laptopBase.rotation.y = THREE.MathUtils.degToRad(-8);
-    const laptopScreen = this.boxMesh(0.92, 0.62, 0.045, materials.laptop, [-0.78, 1.08, 0.45]);
-    laptopScreen.rotation.x = THREE.MathUtils.degToRad(-11);
-    laptopScreen.rotation.y = THREE.MathUtils.degToRad(-8);
-    const screenInset = this.boxMesh(0.78, 0.48, 0.015, new THREE.MeshStandardMaterial({ color: 0xe8ecef, roughness: 0.5 }), [-0.78, 1.09, 0.421]);
+    const laptopBase = this.boxMesh(0.72, 0.04, 0.46, materials.laptopDark, [-0.86, 0.985, 0.72]);
+    laptopBase.rotation.y = THREE.MathUtils.degToRad(-11);
+    const laptopScreen = this.boxMesh(0.66, 0.42, 0.035, materials.laptop, [-0.9, 1.22, 0.49]);
+    laptopScreen.rotation.x = THREE.MathUtils.degToRad(-12);
+    laptopScreen.rotation.y = THREE.MathUtils.degToRad(-11);
+    const screenInset = this.boxMesh(0.54, 0.32, 0.012, new THREE.MeshStandardMaterial({ color: 0xe8ecef, roughness: 0.5 }), [-0.9, 1.225, 0.468]);
     screenInset.rotation.copy(laptopScreen.rotation);
     this.environmentGroup.add(laptopBase, laptopScreen, screenInset);
 
-    const document = this.boxMesh(0.72, 0.018, 0.42, materials.paper, [0.75, 0.73, 0.78]);
+    const document = this.boxMesh(0.58, 0.014, 0.34, materials.paper, [0.62, 0.985, 0.74]);
     document.rotation.y = THREE.MathUtils.degToRad(7);
-    const badge = this.boxMesh(0.44, 0.025, 0.12, materials.paper, [0.1, 0.735, 0.78]);
+    const badge = this.boxMesh(0.34, 0.02, 0.1, materials.paper, [0.05, 0.99, 0.75]);
     this.environmentGroup.add(document, badge);
   }
 

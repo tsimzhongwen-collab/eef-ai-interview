@@ -494,7 +494,6 @@ function handleRealtimeEvent(message) {
     const text = (event.transcript || "").trim();
     if (text) {
       state.transcript.push({ role: "assistant", text, topic: currentTopic() });
-      setQuestionText(text, state.currentQuestionItem);
     }
     return;
   }
@@ -571,7 +570,7 @@ async function endInterviewAndReview() {
     renderFeedback(data.feedback, data.text);
   } catch (error) {
     console.error(error);
-    renderFeedbackError(`复盘生成失败：${friendlyError(error)}\n\n本轮对话记录已保留在浏览器内存中，但没有继续消耗 Realtime 连接。`);
+    renderFeedback(buildFallbackFeedback(error), "");
   }
 }
 
@@ -661,6 +660,33 @@ function renderFeedback(feedback, fallbackText = "") {
       </div>
     </section>
   `;
+}
+
+function buildFallbackFeedback(error) {
+  return {
+    overallScore: 0,
+    riskLevel: "medium",
+    headline: "AI 总结暂时没有生成",
+    summary: `原因：${friendlyError(error)}。本轮问答和录音已经保留，可以先检查逐题记录。`,
+    scoreCards: [
+      { label: "听懂与应答", score: 0, status: "warning", note: "总结接口失败，暂时无法评分。" },
+      { label: "学习计划连贯性", score: 0, status: "warning", note: "请稍后重新生成或再开始一轮。" },
+      { label: "法语表达", score: 0, status: "warning", note: "逐题回答仍可在下方查看。" },
+      { label: "风险控制", score: 0, status: "warning", note: "本地已停止 Realtime，不会继续消耗实时连接。" }
+    ],
+    keyFindings: [
+      {
+        title: "复盘接口请求失败",
+        detail: "这通常是模型名不可用、网络中断、接口超时或 Vercel 函数返回异常造成的。",
+        status: "warning"
+      }
+    ],
+    qaPairs: [],
+    languageIssues: [],
+    riskyAnswers: [],
+    bestAnswers: [],
+    practiceQuestions: []
+  };
 }
 
 function renderScoreCard(card) {

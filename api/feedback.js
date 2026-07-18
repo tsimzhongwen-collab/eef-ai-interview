@@ -1,4 +1,4 @@
-const FEEDBACK_MODEL = process.env.OPENAI_FEEDBACK_MODEL || process.env.OPENAI_MODEL || "gpt-5.6";
+const FEEDBACK_MODEL = process.env.OPENAI_FEEDBACK_MODEL || process.env.OPENAI_MODEL || "gpt-4.1-mini";
 
 function extractText(data) {
   if (typeof data.output_text === "string" && data.output_text.trim()) return data.output_text.trim();
@@ -68,6 +68,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: FEEDBACK_MODEL,
+        max_output_tokens: 3000,
         instructions: [
           "你是 Campus France / EEF 面签复盘教练。",
           "只使用本轮 transcript 中学生实际回答过的内容进行分析，禁止凭空制造风险、错误或事实。",

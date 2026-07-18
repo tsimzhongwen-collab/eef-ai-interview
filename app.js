@@ -287,6 +287,27 @@ function isRepeatRequest(text = "") {
   ].some((pattern) => pattern.test(normalized));
 }
 
+function isMeaningfulUserAnswer(text = "") {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+
+  const normalized = trimmed
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  const words = normalized.match(/[a-z]+|[\u4e00-\u9fff]+/g) || [];
+  if (!words.length) return false;
+
+  const fillerWords = new Set(["euh", "heu", "hum", "hmm", "ah", "oh", "bah", "ben"]);
+  if (words.every((word) => fillerWords.has(word))) return false;
+  if (/^(euh|heu|hum|hmm|ah|oh|bah|ben)[.!?。！？\s]*$/.test(normalized)) return false;
+
+  const shortValidAnswers = /^(oui|non|si|pardon|d'accord|daccord|bonjour|merci)$/i;
+  if (words.length === 1 && normalized.length < 4 && !shortValidAnswers.test(normalized)) return false;
+
+  return true;
+}
+
 function repeatCurrentQuestion() {
   const question = state.currentQuestion || "Pouvez-vous répéter votre question ?";
   setQuestionText(question, state.currentQuestionItem);
@@ -431,11 +452,19 @@ function handleRealtimeEvent(message) {
 
   if (event.type === "conversation.item.input_audio_transcription.completed") {
     const text = (event.transcript || "").trim();
-    const audioUrl = consumeLastUserAudioUrl();
     if (isRepeatRequest(text)) {
+      discardLastUserAudioSegment();
       repeatCurrentQuestion();
       return;
     }
+
+    if (!isMeaningfulUserAnswer(text)) {
+      discardLastUserAudioSegment();
+      setStatus("Je vous écoute. Vous pouvez répondre quand vous êtes prêt.", "idle");
+      return;
+    }
+
+    const audioUrl = consumeLastUserAudioUrl();
     if (text) {
       state.transcript.push({
         role: "user",
@@ -456,17 +485,8 @@ function handleRealtimeEvent(message) {
   }
 
   if (event.type === "conversation.item.input_audio_transcription.failed") {
-    const audioUrl = consumeLastUserAudioUrl();
-    state.transcript.push({
-      role: "user",
-      text: "[Transcription non disponible]",
-      topic: currentTopic(),
-      question: state.currentQuestion,
-      questionZh: state.currentQuestionZh,
-      audioUrl,
-      audioMime: state.lastUserAudioMime
-    });
-    askNextQuestion("");
+    discardLastUserAudioSegment();
+    setStatus("Je n'ai pas bien entendu. Vous pouvez répondre encore une fois.", "idle");
     return;
   }
 
@@ -890,6 +910,16 @@ function finalizeUserAudioSegment() {
 
 function consumeLastUserAudioUrl() {
   return finalizeUserAudioSegment();
+}
+
+function discardLastUserAudioSegment() {
+  state.isCapturingUserAudio = false;
+  if (state.lastUserAudioUrl) {
+    URL.revokeObjectURL(state.lastUserAudioUrl);
+    state.audioObjectUrls = state.audioObjectUrls.filter((url) => url !== state.lastUserAudioUrl);
+  }
+  state.currentAudioChunks = [];
+  state.lastUserAudioUrl = "";
 }
 
 function revokeAnswerAudioUrls() {

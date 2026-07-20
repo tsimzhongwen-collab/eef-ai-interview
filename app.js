@@ -777,9 +777,14 @@ function renderFeedbackError(message) {
 }
 
 function renderFeedback(feedback, fallbackText = "") {
+  if (typeof feedback === "string") {
+    feedback = parseFeedbackJson(feedback);
+  }
+  if (!feedback && fallbackText) {
+    feedback = parseFeedbackJson(fallbackText);
+  }
   if (!feedback || typeof feedback !== "object") {
-    els.feedbackContent.className = "feedback-content";
-    els.feedbackContent.textContent = fallbackText || "复盘生成完成，但格式无法解析。";
+    renderFeedback(buildFallbackFeedback(new Error("复盘格式无法解析")), "");
     return;
   }
 
@@ -793,6 +798,8 @@ function renderFeedback(feedback, fallbackText = "") {
   const bestAnswers = Array.isArray(feedback.bestAnswers) ? feedback.bestAnswers : [];
   const practiceQuestions = Array.isArray(feedback.practiceQuestions) ? feedback.practiceQuestions : [];
   const qaPairs = buildQaPairs(feedback.qaPairs);
+  const primaryRisks = riskyAnswers.slice(0, 3);
+  const primaryIssues = languageIssues.slice(0, 4);
 
   els.feedbackContent.innerHTML = `
     <section class="feedback-hero ${risk}">
@@ -808,7 +815,17 @@ function renderFeedback(feedback, fallbackText = "") {
     </section>
 
     <section class="score-grid">
-      ${scoreCards.map(renderScoreCard).join("")}
+      ${scoreCards.map(renderScoreCard).join("") || renderEmptyScoreCards()}
+    </section>
+
+    <section class="feedback-section qa-section flow-review">
+      <div class="section-heading">
+        <h3>全流程回答复盘</h3>
+        <span>${qaPairs.length} 个回答</span>
+      </div>
+      <div class="qa-list">
+        ${qaPairs.map(renderQaPair).join("") || "<p class=\"empty-note\">本轮没有可显示的问答记录。</p>"}
+      </div>
     </section>
 
     <section class="feedback-section">
@@ -818,21 +835,14 @@ function renderFeedback(feedback, fallbackText = "") {
       </div>
     </section>
 
-    <section class="feedback-section qa-section">
-      <h3>本次抽取的问题和我的回答</h3>
-      <div class="qa-list">
-        ${qaPairs.map(renderQaPair).join("") || "<p class=\"empty-note\">本轮没有可显示的问答记录。</p>"}
-      </div>
-    </section>
-
     <section class="feedback-columns">
       <div class="feedback-section">
-        <h3>法语表达问题</h3>
-        ${languageIssues.map(renderLanguageIssue).join("") || "<p class=\"empty-note\">本轮没有明显需要单独列出的法语问题。</p>"}
+        <h3>最需要修的法语</h3>
+        ${primaryIssues.map(renderLanguageIssue).join("") || "<p class=\"empty-note\">本轮没有明显需要单独列出的法语问题。</p>"}
       </div>
       <div class="feedback-section">
-        <h3>高风险回答</h3>
-        ${riskyAnswers.map(renderRiskyAnswer).join("") || "<p class=\"empty-note\">没有发现明显高风险回答。</p>"}
+        <h3>最危险的回答</h3>
+        ${primaryRisks.map(renderRiskyAnswer).join("") || "<p class=\"empty-note\">没有发现明显高风险回答。</p>"}
       </div>
     </section>
 
@@ -847,6 +857,22 @@ function renderFeedback(feedback, fallbackText = "") {
       </div>
     </section>
   `;
+}
+
+function parseFeedbackJson(text) {
+  const trimmed = String(text || "").trim();
+  if (!trimmed) return null;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const match = trimmed.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    try {
+      return JSON.parse(match[0]);
+    } catch {
+      return null;
+    }
+  }
 }
 
 function buildFallbackFeedback(error) {
@@ -891,13 +917,29 @@ function renderScoreCard(card) {
   `;
 }
 
+function renderEmptyScoreCards() {
+  return [
+    { label: "听懂与应答", score: 0, status: "warning", note: "暂无评分。" },
+    { label: "学习计划", score: 0, status: "warning", note: "暂无评分。" },
+    { label: "法语表达", score: 0, status: "warning", note: "暂无评分。" },
+    { label: "风险控制", score: 0, status: "warning", note: "暂无评分。" }
+  ].map(renderScoreCard).join("");
+}
+
+function statusText(status) {
+  const normalized = normalizeStatus(status);
+  if (normalized === "danger") return "高风险";
+  if (normalized === "warning") return "注意";
+  return "稳定";
+}
+
 function renderFinding(item) {
   const status = normalizeStatus(item.status);
   return `
     <article class="finding-item ${status}">
       <span></span>
       <div>
-        <strong>${escapeHtml(item.title || "结论")}</strong>
+        <strong>${escapeHtml(item.title || "结论")}<em>${statusText(status)}</em></strong>
         <p>${escapeHtml(item.detail || "")}</p>
       </div>
     </article>
@@ -955,6 +997,8 @@ function buildQaPairs(modelPairs) {
       questionZh: model.questionZh || turn.questionZh || findQuestionTranslation(turn.question || ""),
       answerFr: model.answerFr || turn.text || "",
       answerZh: model.answerZh || "",
+      verdict: model.verdict || "",
+      risk: normalizeStatus(model.risk),
       audioUrl: turn.audioUrl || ""
     };
   });
@@ -965,6 +1009,7 @@ function renderQaPair(item) {
     <article class="qa-card">
       <div class="qa-card-top">
         <strong>第 ${item.index} 题</strong>
+        ${item.verdict ? `<span class="qa-verdict ${item.risk}">${escapeHtml(item.verdict)}</span>` : ""}
         ${item.audioUrl ? `<audio controls preload="metadata" src="${escapeHtml(item.audioUrl)}"></audio>` : "<span class=\"qa-no-audio\">没有录到音频</span>"}
       </div>
       <div class="qa-block">

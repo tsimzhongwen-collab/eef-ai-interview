@@ -13,7 +13,11 @@ function extractText(data) {
 }
 
 function extractJsonObject(text) {
-  const trimmed = String(text || "").trim();
+  const trimmed = String(text || "")
+    .trim()
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/i, "")
+    .trim();
   if (!trimmed) return null;
   try {
     return JSON.parse(trimmed);
@@ -80,9 +84,10 @@ export default async function handler(req, res) {
           "overallScore 是 0-100 整数。riskLevel 只能是 low、medium、high。",
           "scoreCards 必须包含 4 项：听懂与应答、学习计划连贯性、法语表达、风险控制。每项包含 label、score、status、note。status 只能是 good、warning、danger。",
           "keyFindings 给 3-5 条最重要结论，每条包含 title、detail、status。",
-          "qaPairs 必须逐题列出本轮所有用户回答，每条包含 index、questionFr、questionZh、answerFr、answerZh。",
+          "qaPairs 必须逐题列出本轮所有用户回答，每条包含 index、questionFr、questionZh、answerFr、answerZh、verdict、risk。",
           "qaPairs.questionFr 使用 transcript 里的问题法语；questionZh 使用 transcript 中已有中文，缺失时再翻译。",
           "qaPairs.answerFr 必须尽量保留用户实际转写文本，不要润色；answerZh 是简体中文直译。",
+          "qaPairs.verdict 用中文一句话说明这一题是否答到点；qaPairs.risk 只能是 good、warning、danger。",
           "languageIssues 最多 5 条，每条包含 original、suggestion、explanation。original 必须来自用户实际短句。",
           "riskyAnswers 最多 3 条，按风险排序，每条包含 answer、risk、fix。",
           "bestAnswers 最多 3 条，每条包含 answer、why。",

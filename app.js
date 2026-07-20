@@ -106,6 +106,7 @@ const state = {
   userWasHeard: false,
   awaitingResponse: false,
   canAcceptUserAnswer: false,
+  acceptedSpeechStarted: false,
   answerReadyTimer: null,
   interviewEnded: false,
   textVisible: false,
@@ -452,6 +453,7 @@ function isLikelyQuestionEcho(text = "") {
 
 function closeAnswerWindow() {
   state.canAcceptUserAnswer = false;
+  state.acceptedSpeechStarted = false;
   if (state.answerReadyTimer) {
     clearTimeout(state.answerReadyTimer);
     state.answerReadyTimer = null;
@@ -461,6 +463,7 @@ function closeAnswerWindow() {
 function openAnswerWindowSoon() {
   closeAnswerWindow();
   state.answerReadyTimer = window.setTimeout(() => {
+    sendEvent({ type: "input_audio_buffer.clear" });
     state.canAcceptUserAnswer = true;
     state.answerReadyTimer = null;
     if (!state.interviewEnded && !state.awaitingResponse) {
@@ -606,13 +609,14 @@ function handleRealtimeEvent(message) {
       return;
     }
     state.userWasHeard = true;
+    state.acceptedSpeechStarted = true;
     beginUserAudioSegment();
     setStatus("Vous parlez...", "user");
     return;
   }
 
   if (event.type === "input_audio_buffer.speech_stopped") {
-    if (!state.canAcceptUserAnswer) {
+    if (!state.canAcceptUserAnswer || !state.acceptedSpeechStarted) {
       discardLastUserAudioSegment();
       return;
     }
@@ -623,7 +627,7 @@ function handleRealtimeEvent(message) {
 
   if (event.type === "conversation.item.input_audio_transcription.completed") {
     const text = (event.transcript || "").trim();
-    if (!state.canAcceptUserAnswer) {
+    if (!state.canAcceptUserAnswer || !state.acceptedSpeechStarted) {
       discardLastUserAudioSegment();
       return;
     }
@@ -669,6 +673,7 @@ function handleRealtimeEvent(message) {
 
   if (event.type === "conversation.item.input_audio_transcription.failed") {
     discardLastUserAudioSegment();
+    state.acceptedSpeechStarted = false;
     if (state.canAcceptUserAnswer) {
       setStatus("Je n'ai pas bien entendu. Vous pouvez répondre encore une fois.", "idle");
     }
@@ -1179,6 +1184,7 @@ function consumeLastUserAudioUrl() {
 
 function discardLastUserAudioSegment() {
   state.isCapturingUserAudio = false;
+  state.acceptedSpeechStarted = false;
   if (state.lastUserAudioUrl) {
     URL.revokeObjectURL(state.lastUserAudioUrl);
     state.audioObjectUrls = state.audioObjectUrls.filter((url) => url !== state.lastUserAudioUrl);

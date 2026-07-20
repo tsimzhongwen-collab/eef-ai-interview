@@ -93,6 +93,8 @@ const state = {
   topicQuestionCount: 0,
   questionCount: 0,
   docQuestionIndex: 0,
+  randomPartIndex: 0,
+  randomPartPlan: [],
   practiceMode: "random-5",
   targetQuestionCount: TOTAL_TARGET + Math.floor(Math.random() * 5) - 2,
   askedQuestions: new Set(),
@@ -114,6 +116,7 @@ const state = {
 };
 
 state.targetQuestionCount = calculateTargetQuestionCount();
+state.randomPartPlan = buildRandomPartPlan();
 updateCounter();
 updatePracticeModeUi();
 
@@ -147,6 +150,8 @@ function setPracticeMode(modeId) {
   state.practiceMode = modeId;
   state.targetQuestionCount = calculateTargetQuestionCount();
   state.docQuestionIndex = 0;
+  state.randomPartIndex = 0;
+  state.randomPartPlan = buildRandomPartPlan();
   state.askedQuestions = new Set();
   updatePracticeModeUi();
   updateCounter();
@@ -173,6 +178,36 @@ function calculateTargetQuestionCount() {
   if (selectedDocPart()) return Math.max(1, pool.length);
   const naturalTarget = TOTAL_TARGET + Math.floor(Math.random() * 5) - 2;
   return Math.max(1, Math.min(pool.length || naturalTarget, naturalTarget));
+}
+
+function questionsForDocPart(part) {
+  return questions.filter((q) => (
+    q.fr &&
+    !/quelque chose à ajouter/i.test(q.fr) &&
+    part.match.test(q.docSection || "")
+  ));
+}
+
+function buildRandomPartPlan() {
+  if (selectedDocPart()) return [];
+  const activeParts = MAIN_DOC_PARTS.filter((part) => questionsForDocPart(part).length > 0);
+  if (!activeParts.length) return [];
+
+  const plannedQuestionCount = Math.max(1, state.targetQuestionCount - 1);
+  const baseCount = Math.floor(plannedQuestionCount / activeParts.length);
+  let remaining = plannedQuestionCount % activeParts.length;
+  const plan = [];
+
+  activeParts.forEach((part) => {
+    const poolSize = questionsForDocPart(part).length;
+    const count = Math.min(poolSize, baseCount + (remaining > 0 ? 1 : 0));
+    if (remaining > 0) remaining -= 1;
+    for (let index = 0; index < count; index += 1) {
+      plan.push(part.id);
+    }
+  });
+
+  return plan;
 }
 
 function setQuestionText(text, questionItem = null) {
@@ -216,9 +251,13 @@ function pickDocumentQuestion() {
   }
 
   if (!selectedDocPart()) {
-    const unused = source.filter((q) => !state.askedQuestions.has(q.fr));
-    const pool = unused.length ? unused : source;
+    const plannedPartId = state.randomPartPlan[state.randomPartIndex];
+    const plannedPart = MAIN_DOC_PARTS.find((part) => part.id === plannedPartId) || MAIN_DOC_PARTS[0];
+    const plannedPool = questionsForDocPart(plannedPart);
+    const unused = plannedPool.filter((q) => !state.askedQuestions.has(q.fr));
+    const pool = unused.length ? unused : plannedPool.length ? plannedPool : source;
     const selected = pool[Math.floor(Math.random() * pool.length)];
+    state.randomPartIndex += 1;
     state.askedQuestions.add(selected.fr);
     return selected;
   }
@@ -948,7 +987,9 @@ function resetInterviewState() {
   state.topicQuestionCount = 0;
   state.questionCount = 0;
   state.docQuestionIndex = 0;
+  state.randomPartIndex = 0;
   state.targetQuestionCount = calculateTargetQuestionCount();
+  state.randomPartPlan = buildRandomPartPlan();
   state.askedQuestions = new Set();
   state.transcript = [];
   state.currentQuestion = "";

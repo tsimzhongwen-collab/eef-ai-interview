@@ -105,6 +105,8 @@ const state = {
   currentMode: "idle",
   userWasHeard: false,
   awaitingResponse: false,
+  canAcceptUserAnswer: false,
+  answerReadyTimer: null,
   interviewEnded: false,
   textVisible: false,
   mediaRecorder: null,
@@ -378,6 +380,7 @@ function sendEvent(event) {
 
 function createResponse(instructions) {
   state.awaitingResponse = true;
+  closeAnswerWindow();
   return sendEvent({
     type: "response.create",
     response: {
@@ -421,6 +424,49 @@ function isMeaningfulUserAnswer(text = "") {
   if (words.length === 1 && normalized.length < 4 && !shortValidAnswers.test(normalized)) return false;
 
   return true;
+}
+
+function normalizeForCompare(text = "") {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isLikelyQuestionEcho(text = "") {
+  const answer = normalizeForCompare(text);
+  const question = normalizeForCompare(state.currentQuestion);
+  if (!answer || !question) return false;
+  if (question.includes(answer) && answer.length > 18) return true;
+  if (answer.includes(question) && question.length > 18) return true;
+
+  const answerWords = new Set(answer.split(" ").filter((word) => word.length > 2));
+  const questionWords = question.split(" ").filter((word) => word.length > 2);
+  if (answerWords.size < 3 || questionWords.length < 3) return false;
+  const overlap = questionWords.filter((word) => answerWords.has(word)).length;
+  return overlap / questionWords.length >= 0.72;
+}
+
+function closeAnswerWindow() {
+  state.canAcceptUserAnswer = false;
+  if (state.answerReadyTimer) {
+    clearTimeout(state.answerReadyTimer);
+    state.answerReadyTimer = null;
+  }
+}
+
+function openAnswerWindowSoon() {
+  closeAnswerWindow();
+  state.answerReadyTimer = window.setTimeout(() => {
+    state.canAcceptUserAnswer = true;
+    state.answerReadyTimer = null;
+    if (!state.interviewEnded && !state.awaitingResponse) {
+      setStatus("À vous de répondre.", "idle");
+    }
+  }, 900);
 }
 
 function repeatCurrentQuestion() {
@@ -555,6 +601,10 @@ function handleRealtimeEvent(message) {
   }
 
   if (event.type === "input_audio_buffer.speech_started") {
+    if (!state.canAcceptUserAnswer) {
+      discardLastUserAudioSegment();
+      return;
+    }
     state.userWasHeard = true;
     beginUserAudioSegment();
     setStatus("Vous parlez...", "user");
@@ -562,6 +612,10 @@ function handleRealtimeEvent(message) {
   }
 
   if (event.type === "input_audio_buffer.speech_stopped") {
+    if (!state.canAcceptUserAnswer) {
+      discardLastUserAudioSegment();
+      return;
+    }
     finishUserAudioSegmentSoon();
     setStatus("Réponse reçue, préparation de la suite...", "thinking");
     return;
@@ -569,6 +623,17 @@ function handleRealtimeEvent(message) {
 
   if (event.type === "conversation.item.input_audio_transcription.completed") {
     const text = (event.transcript || "").trim();
+    if (!state.canAcceptUserAnswer) {
+      discardLastUserAudioSegment();
+      return;
+    }
+
+    if (isLikelyQuestionEcho(text)) {
+      discardLastUserAudioSegment();
+      setStatus("Je vous écoute. Vous pouvez répondre quand vous êtes prêt.", "idle");
+      return;
+    }
+
     if (isRepeatRequest(text)) {
       discardLastUserAudioSegment();
       repeatCurrentQuestion();
@@ -582,6 +647,7 @@ function handleRealtimeEvent(message) {
     }
 
     const audioUrl = consumeLastUserAudioUrl();
+    closeAnswerWindow();
     if (text) {
       state.transcript.push({
         role: "user",
@@ -603,7 +669,9 @@ function handleRealtimeEvent(message) {
 
   if (event.type === "conversation.item.input_audio_transcription.failed") {
     discardLastUserAudioSegment();
-    setStatus("Je n'ai pas bien entendu. Vous pouvez répondre encore une fois.", "idle");
+    if (state.canAcceptUserAnswer) {
+      setStatus("Je n'ai pas bien entendu. Vous pouvez répondre encore une fois.", "idle");
+    }
     return;
   }
 
@@ -616,6 +684,7 @@ function handleRealtimeEvent(message) {
   }
 
   if (event.type === "response.created") {
+    closeAnswerWindow();
     setStatus("Le jury parle...", "assistant");
     return;
   }
@@ -625,7 +694,8 @@ function handleRealtimeEvent(message) {
     if (state.interviewEnded) {
       setTimeout(endInterviewAndReview, 900);
     } else {
-      setStatus("À vous de répondre.", "idle");
+      setStatus("Préparez votre réponse...", "thinking");
+      openAnswerWindowSoon();
     }
   }
 }
@@ -941,6 +1011,7 @@ function escapeHtml(value) {
 async function closeRealtime() {
   if (state.animationFrame) cancelAnimationFrame(state.animationFrame);
   state.animationFrame = null;
+  closeAnswerWindow();
 
   finalizeUserAudioSegment();
 
@@ -998,6 +1069,8 @@ function resetInterviewState() {
   state.currentMode = "idle";
   state.userWasHeard = false;
   state.awaitingResponse = false;
+  state.canAcceptUserAnswer = false;
+  closeAnswerWindow();
   state.interviewEnded = false;
   state.textVisible = false;
   state.currentAudioChunks = [];

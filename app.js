@@ -42,6 +42,23 @@ const ART_BANNED_ANGLES = [
   "une longue interprétation esthétique"
 ];
 
+const MAIN_DOC_PARTS = [
+  { id: "part-1", label: "第 1 部分", shortLabel: "第1部分", match: /^Première partie/i },
+  { id: "part-2", label: "第 2 部分", shortLabel: "第2部分", match: /^Deuxième partie/i },
+  { id: "part-3", label: "第 3 部分", shortLabel: "第3部分", match: /^Troisième partie/i },
+  { id: "part-4", label: "第 4 部分", shortLabel: "第4部分", match: /^Quatrième partie/i },
+  { id: "part-5", label: "第 5 部分", shortLabel: "第5部分", match: /^Cinquième partie/i }
+];
+
+const PRACTICE_MODES = [
+  ...MAIN_DOC_PARTS.map((part) => ({
+    id: part.id,
+    label: `${part.shortLabel}顺序`,
+    description: `${part.label}顺序提问`
+  })),
+  { id: "random-5", label: "五部分随机", description: "五部分随机抽选" }
+];
+
 const $ = (id) => document.getElementById(id);
 const els = {
   interviewView: $("interviewView"),
@@ -57,6 +74,9 @@ const els = {
   feedbackContent: $("feedbackContent"),
   restartBtn: $("restartBtn"),
   remoteAudio: $("remoteAudio"),
+  modePicker: $("modePicker"),
+  practiceModeLabel: $("practiceModeLabel"),
+  practiceModeOptions: $("practiceModeOptions"),
   meters: [$("meterA"), $("meterB"), $("meterC")]
 };
 
@@ -73,6 +93,7 @@ const state = {
   topicQuestionCount: 0,
   questionCount: 0,
   docQuestionIndex: 0,
+  practiceMode: "random-5",
   targetQuestionCount: TOTAL_TARGET + Math.floor(Math.random() * 5) - 2,
   askedQuestions: new Set(),
   transcript: [],
@@ -92,7 +113,9 @@ const state = {
   audioObjectUrls: []
 };
 
+state.targetQuestionCount = calculateTargetQuestionCount();
 updateCounter();
+updatePracticeModeUi();
 
 function setStatus(text, mode = state.currentMode) {
   state.currentMode = mode;
@@ -105,6 +128,51 @@ function setStatus(text, mode = state.currentMode) {
 
 function updateCounter() {
   els.questionCount.textContent = `${String(state.questionCount).padStart(2, "0")} / ${state.targetQuestionCount}`;
+}
+
+function updatePracticeModeUi() {
+  const mode = PRACTICE_MODES.find((item) => item.id === state.practiceMode) || PRACTICE_MODES[PRACTICE_MODES.length - 1];
+  els.practiceModeLabel.textContent = mode.label;
+  [...els.practiceModeOptions.querySelectorAll("button")].forEach((button) => {
+    button.classList.toggle("active", button.dataset.mode === state.practiceMode);
+  });
+}
+
+function setPracticeMode(modeId) {
+  if (state.localStream || state.pc || state.awaitingResponse) {
+    els.modePicker.open = false;
+    return;
+  }
+  if (!PRACTICE_MODES.some((item) => item.id === modeId)) return;
+  state.practiceMode = modeId;
+  state.targetQuestionCount = calculateTargetQuestionCount();
+  state.docQuestionIndex = 0;
+  state.askedQuestions = new Set();
+  updatePracticeModeUi();
+  updateCounter();
+  els.modePicker.open = false;
+}
+
+function isMainDocPart(question) {
+  return MAIN_DOC_PARTS.some((part) => part.match.test(question.docSection || ""));
+}
+
+function selectedDocPart() {
+  return MAIN_DOC_PARTS.find((part) => part.id === state.practiceMode) || null;
+}
+
+function getModeQuestionPool() {
+  const source = questions.filter((q) => q.fr && !/quelque chose à ajouter/i.test(q.fr));
+  const part = selectedDocPart();
+  if (part) return source.filter((q) => part.match.test(q.docSection || ""));
+  return source.filter(isMainDocPart);
+}
+
+function calculateTargetQuestionCount() {
+  const pool = getModeQuestionPool();
+  if (selectedDocPart()) return Math.max(1, pool.length);
+  const naturalTarget = TOTAL_TARGET + Math.floor(Math.random() * 5) - 2;
+  return Math.max(1, Math.min(pool.length || naturalTarget, naturalTarget));
 }
 
 function setQuestionText(text, questionItem = null) {
@@ -142,9 +210,17 @@ function pickQuestion(topic) {
 }
 
 function pickDocumentQuestion() {
-  const source = questions.filter((q) => q.fr && !/quelque chose à ajouter/i.test(q.fr));
+  const source = getModeQuestionPool();
   if (!source.length) {
     return { section: currentTopic(), fr: "Pouvez-vous m'expliquer votre projet d'études ?" };
+  }
+
+  if (!selectedDocPart()) {
+    const unused = source.filter((q) => !state.askedQuestions.has(q.fr));
+    const pool = unused.length ? unused : source;
+    const selected = pool[Math.floor(Math.random() * pool.length)];
+    state.askedQuestions.add(selected.fr);
+    return selected;
   }
 
   for (let offset = 0; offset < source.length; offset += 1) {
@@ -224,7 +300,7 @@ function buildBaseInstruction() {
 }
 
 function buildTurnInstruction() {
-  const mustEnd = state.questionCount >= state.targetQuestionCount - 1;
+  const mustEnd = !selectedDocPart() && state.questionCount >= state.targetQuestionCount - 1;
   const questionItem = mustEnd ? pickDocumentFinalQuestion() : pickDocumentQuestion();
   state.currentQuestionItem = questionItem;
   const topicIndex = TOPIC_ORDER.indexOf(questionItem.section);
@@ -347,6 +423,7 @@ function finishAfterFinalAnswer() {
 async function startInterview() {
   resetInterviewState();
   els.startBtn.disabled = true;
+  els.modePicker.classList.add("is-locked");
   setStatus("Demande d'accès au microphone...", "thinking");
 
   try {
@@ -375,6 +452,7 @@ async function startInterview() {
     console.error(error);
     await closeRealtime();
     els.startBtn.disabled = false;
+    els.modePicker.classList.remove("is-locked");
     setStatus(friendlyError(error), "idle");
   }
 }
@@ -870,7 +948,7 @@ function resetInterviewState() {
   state.topicQuestionCount = 0;
   state.questionCount = 0;
   state.docQuestionIndex = 0;
-  state.targetQuestionCount = TOTAL_TARGET + Math.floor(Math.random() * 5) - 2;
+  state.targetQuestionCount = calculateTargetQuestionCount();
   state.askedQuestions = new Set();
   state.transcript = [];
   state.currentQuestion = "";
@@ -884,9 +962,11 @@ function resetInterviewState() {
   state.currentAudioChunks = [];
   state.lastUserAudioUrl = "";
   state.lastUserAudioMime = "";
+  updatePracticeModeUi();
   els.questionText.classList.add("hidden");
   els.toggleTextBtn.classList.add("hidden");
   els.toggleTextBtn.textContent = "Afficher le texte";
+  els.modePicker.classList.remove("is-locked");
   updateCounter();
 }
 
@@ -967,6 +1047,11 @@ els.endBtn.addEventListener("click", () => {
   endInterviewAndReview();
 });
 els.toggleTextBtn.addEventListener("click", toggleQuestionText);
+els.practiceModeOptions.addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-mode]");
+  if (!button) return;
+  setPracticeMode(button.dataset.mode);
+});
 els.restartBtn.addEventListener("click", () => {
   els.feedbackView.classList.add("hidden");
   els.interviewView.classList.remove("hidden");

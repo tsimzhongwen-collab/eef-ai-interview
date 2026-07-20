@@ -18,9 +18,25 @@
   <main class="app-shell">
     <section id="interviewView" class="interview-view">
       <header class="topbar">
-        <div>
-          <div class="eyebrow">CAMPUS FRANCE · EEF</div>
-          <h1>Entretien simulé</h1>
+        <div class="topbar-left">
+          <details id="modePicker" class="mode-picker">
+            <summary>
+              <span class="mode-kicker">Mode</span>
+              <strong id="practiceModeLabel">五部分随机</strong>
+            </summary>
+            <div class="mode-menu" id="practiceModeOptions">
+              <button type="button" data-mode="part-1">第 1 部分顺序提问</button>
+              <button type="button" data-mode="part-2">第 2 部分顺序提问</button>
+              <button type="button" data-mode="part-3">第 3 部分顺序提问</button>
+              <button type="button" data-mode="part-4">第 4 部分顺序提问</button>
+              <button type="button" data-mode="part-5">第 5 部分顺序提问</button>
+              <button type="button" data-mode="random-5">五部分随机抽选</button>
+            </div>
+          </details>
+          <div>
+            <div class="eyebrow">CAMPUS FRANCE · EEF</div>
+            <h1>Entretien simulé</h1>
+          </div>
         </div>
         <div class="question-count" id="questionCount">00 / 20</div>
       </header>

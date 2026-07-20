@@ -113,6 +113,7 @@ const state = {
   mediaRecorder: null,
   isCapturingUserAudio: false,
   currentAudioChunks: [],
+  userAudioSegmentStartedAt: 0,
   lastUserAudioUrl: "",
   lastUserAudioMime: "",
   audioObjectUrls: []
@@ -414,6 +415,7 @@ function isMeaningfulUserAnswer(text = "") {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
+  if (/entretien campus france|campus france eef|bilan en chinois|本轮复盘|总评分/.test(normalized)) return false;
   const words = normalized.match(/[a-z]+|[\u4e00-\u9fff]+/g) || [];
   if (!words.length) return false;
 
@@ -422,9 +424,15 @@ function isMeaningfulUserAnswer(text = "") {
   if (/^(euh|heu|hum|hmm|ah|oh|bah|ben)[.!?。！？\s]*$/.test(normalized)) return false;
 
   const shortValidAnswers = /^(oui|non|si|pardon|d'accord|daccord|bonjour|merci)$/i;
-  if (words.length === 1 && normalized.length < 4 && !shortValidAnswers.test(normalized)) return false;
+  if (words.length === 1 && !shortValidAnswers.test(normalized)) return false;
 
   return true;
+}
+
+function hasLocalAnswerAudio() {
+  if (!state.mediaRecorder) return true;
+  const duration = state.userAudioSegmentStartedAt ? performance.now() - state.userAudioSegmentStartedAt : 0;
+  return state.currentAudioChunks.length > 0 && duration >= 450;
 }
 
 function normalizeForCompare(text = "") {
@@ -632,6 +640,12 @@ function handleRealtimeEvent(message) {
       return;
     }
 
+    if (!hasLocalAnswerAudio()) {
+      discardLastUserAudioSegment();
+      setStatus("Je vous écoute. Vous pouvez répondre quand vous êtes prêt.", "idle");
+      return;
+    }
+
     if (isLikelyQuestionEcho(text)) {
       discardLastUserAudioSegment();
       setStatus("Je vous écoute. Vous pouvez répondre quand vous êtes prêt.", "idle");
@@ -651,6 +665,11 @@ function handleRealtimeEvent(message) {
     }
 
     const audioUrl = consumeLastUserAudioUrl();
+    if (!audioUrl && state.mediaRecorder) {
+      discardLastUserAudioSegment();
+      setStatus("Je vous écoute. Vous pouvez répondre quand vous êtes prêt.", "idle");
+      return;
+    }
     closeAnswerWindow();
     if (text) {
       state.transcript.push({
@@ -1124,6 +1143,7 @@ function resetInterviewState() {
   state.interviewEnded = false;
   state.textVisible = false;
   state.currentAudioChunks = [];
+  state.userAudioSegmentStartedAt = 0;
   state.lastUserAudioUrl = "";
   state.lastUserAudioMime = "";
   updatePracticeModeUi();
@@ -1155,6 +1175,7 @@ function setupUserRecorder() {
 
 function beginUserAudioSegment() {
   state.currentAudioChunks = [];
+  state.userAudioSegmentStartedAt = performance.now();
   state.lastUserAudioUrl = "";
   state.lastUserAudioMime = state.mediaRecorder?.mimeType || state.lastUserAudioMime || "audio/webm";
   state.isCapturingUserAudio = true;
@@ -1185,6 +1206,7 @@ function consumeLastUserAudioUrl() {
 function discardLastUserAudioSegment() {
   state.isCapturingUserAudio = false;
   state.acceptedSpeechStarted = false;
+  state.userAudioSegmentStartedAt = 0;
   if (state.lastUserAudioUrl) {
     URL.revokeObjectURL(state.lastUserAudioUrl);
     state.audioObjectUrls = state.audioObjectUrls.filter((url) => url !== state.lastUserAudioUrl);

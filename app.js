@@ -102,6 +102,8 @@ const state = {
   currentQuestion: "",
   currentQuestionZh: "",
   currentQuestionItem: null,
+  questionReadyForAnswer: false,
+  questionLockTimer: null,
   currentMode: "idle",
   userWasHeard: false,
   awaitingResponse: false,
@@ -221,6 +223,53 @@ function setQuestionText(text, questionItem = null) {
     ? `<span class="question-fr">${escapeHtml(state.currentQuestion)}</span>${state.currentQuestionZh ? `<span class="question-zh">${escapeHtml(state.currentQuestionZh)}</span>` : ""}`
     : "";
   els.toggleTextBtn.classList.toggle("hidden", !state.currentQuestion);
+}
+
+function setCurrentQuestionSilently(text, questionItem = null) {
+  state.currentQuestion = text || "";
+  state.currentQuestionZh = questionItem?.zh || findQuestionTranslation(state.currentQuestion);
+  state.questionReadyForAnswer = false;
+}
+
+function showQuestionPending() {
+  clearQuestionLockTimer();
+  els.questionText.innerHTML = `
+    <span class="question-fr muted-question">Question en cours de lecture...</span>
+    <span class="question-zh">请先听面签官读题，读完后文字会锁定。</span>
+  `;
+  els.toggleTextBtn.classList.toggle("hidden", false);
+}
+
+function showLockedQuestion(text = state.currentQuestion, questionItem = state.currentQuestionItem) {
+  clearQuestionLockTimer();
+  setQuestionText(text, questionItem);
+  if (questionItem?.zh) {
+    state.currentQuestionZh = questionItem.zh;
+  }
+  state.questionReadyForAnswer = true;
+}
+
+function clearQuestionLockTimer() {
+  if (state.questionLockTimer) {
+    clearTimeout(state.questionLockTimer);
+    state.questionLockTimer = null;
+  }
+}
+
+function lockQuestionAndOpenAnswer(text = state.currentQuestion, questionItem = state.currentQuestionItem) {
+  showLockedQuestion(text, questionItem);
+  setStatus("Préparez votre réponse...", "thinking");
+  openAnswerWindowSoon();
+}
+
+function scheduleQuestionFallbackLock() {
+  clearQuestionLockTimer();
+  state.questionLockTimer = window.setTimeout(() => {
+    state.questionLockTimer = null;
+    if (!state.questionReadyForAnswer && !state.interviewEnded) {
+      lockQuestionAndOpenAnswer(state.currentQuestion, state.currentQuestionItem);
+    }
+  }, 900);
 }
 
 function findQuestionTranslation(text) {
@@ -459,6 +508,18 @@ function isLikelyQuestionEcho(text = "") {
   return overlap / questionWords.length >= 0.72;
 }
 
+function isSpokenQuestionMismatch(spokenText = "") {
+  const spoken = normalizeForCompare(spokenText);
+  const expected = normalizeForCompare(state.currentQuestion);
+  if (!spoken || !expected) return false;
+  if (spoken.includes(expected) || expected.includes(spoken)) return false;
+  const spokenWords = new Set(spoken.split(" ").filter((word) => word.length > 2));
+  const expectedWords = expected.split(" ").filter((word) => word.length > 2);
+  if (spokenWords.size < 3 || expectedWords.length < 3) return false;
+  const overlap = expectedWords.filter((word) => spokenWords.has(word)).length;
+  return overlap / expectedWords.length < 0.55;
+}
+
 function closeAnswerWindow() {
   state.canAcceptUserAnswer = false;
   state.acceptedSpeechStarted = false;
@@ -471,6 +532,10 @@ function closeAnswerWindow() {
 function openAnswerWindowSoon() {
   closeAnswerWindow();
   state.answerReadyTimer = window.setTimeout(() => {
+    if (!state.questionReadyForAnswer) {
+      state.answerReadyTimer = null;
+      return;
+    }
     sendEvent({ type: "input_audio_buffer.clear" });
     state.canAcceptUserAnswer = true;
     state.answerReadyTimer = null;
@@ -482,7 +547,8 @@ function openAnswerWindowSoon() {
 
 function repeatCurrentQuestion() {
   const question = state.currentQuestion || "Pouvez-vous répéter votre question ?";
-  setQuestionText(question, state.currentQuestionItem);
+  setCurrentQuestionSilently(question, state.currentQuestionItem);
+  showQuestionPending();
   setStatus("Le jury répète la question...", "thinking");
   createResponse([
     buildBaseInstruction(),
@@ -495,7 +561,8 @@ function repeatCurrentQuestion() {
 function askNextQuestion(lastUserAnswer = "") {
   if (state.interviewEnded || state.awaitingResponse) return;
   const turn = buildTurnInstruction(lastUserAnswer);
-  setQuestionText(turn.displayText, state.currentQuestionItem);
+  setCurrentQuestionSilently(turn.displayText, state.currentQuestionItem);
+  showQuestionPending();
   state.questionCount += 1;
   state.topicQuestionCount = 1;
   state.followUpCount = 0;
@@ -507,7 +574,8 @@ function askNextQuestion(lastUserAnswer = "") {
 function finishAfterFinalAnswer() {
   if (state.interviewEnded || state.awaitingResponse) return;
   state.interviewEnded = true;
-  setQuestionText("Merci. L'entretien est terminé. Bonne journée.");
+  setCurrentQuestionSilently("Merci. L'entretien est terminé. Bonne journée.");
+  showQuestionPending();
   setStatus("Fin de l'entretien...", "thinking");
   createResponse([
     buildBaseInstruction(),
@@ -612,7 +680,7 @@ function handleRealtimeEvent(message) {
   }
 
   if (event.type === "input_audio_buffer.speech_started") {
-    if (!state.canAcceptUserAnswer) {
+    if (!state.canAcceptUserAnswer || !state.questionReadyForAnswer) {
       discardLastUserAudioSegment();
       return;
     }
@@ -624,7 +692,7 @@ function handleRealtimeEvent(message) {
   }
 
   if (event.type === "input_audio_buffer.speech_stopped") {
-    if (!state.canAcceptUserAnswer || !state.acceptedSpeechStarted) {
+    if (!state.canAcceptUserAnswer || !state.acceptedSpeechStarted || !state.questionReadyForAnswer) {
       discardLastUserAudioSegment();
       return;
     }
@@ -703,6 +771,13 @@ function handleRealtimeEvent(message) {
     const text = (event.transcript || "").trim();
     if (text) {
       state.transcript.push({ role: "assistant", text, topic: currentTopic() });
+      if (!state.interviewEnded && !state.questionReadyForAnswer) {
+        if (isSpokenQuestionMismatch(text)) {
+          lockQuestionAndOpenAnswer(text, { zh: "以面签官刚刚读出的法语问题为准。" });
+        } else {
+          lockQuestionAndOpenAnswer(state.currentQuestion, state.currentQuestionItem);
+        }
+      }
     }
     return;
   }
@@ -718,8 +793,8 @@ function handleRealtimeEvent(message) {
     if (state.interviewEnded) {
       setTimeout(endInterviewAndReview, 900);
     } else {
-      setStatus("Préparez votre réponse...", "thinking");
-      openAnswerWindowSoon();
+      setStatus("同步题目文字...", "thinking");
+      scheduleQuestionFallbackLock();
     }
   }
 }
@@ -1081,6 +1156,7 @@ async function closeRealtime() {
   if (state.animationFrame) cancelAnimationFrame(state.animationFrame);
   state.animationFrame = null;
   closeAnswerWindow();
+  clearQuestionLockTimer();
 
   finalizeUserAudioSegment();
 
@@ -1135,6 +1211,8 @@ function resetInterviewState() {
   state.currentQuestion = "";
   state.currentQuestionZh = "";
   state.currentQuestionItem = null;
+  state.questionReadyForAnswer = false;
+  clearQuestionLockTimer();
   state.currentMode = "idle";
   state.userWasHeard = false;
   state.awaitingResponse = false;

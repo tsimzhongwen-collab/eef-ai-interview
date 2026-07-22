@@ -974,26 +974,82 @@ function parseFeedbackJson(text) {
   }
 }
 
+function localUserTurns() {
+  return state.transcript.filter((item) => item.role === "user" && String(item.text || "").trim());
+}
+
+function localAnswerStatus(text) {
+  const clean = String(text || "").trim();
+  if (clean.length < 18) return "danger";
+  if (clean.length < 65) return "warning";
+  return "good";
+}
+
+function localAnswerVerdict(text) {
+  const clean = String(text || "").trim();
+  if (!clean) return "没有捕捉到有效回答。";
+  if (clean.length < 18) return "回答太短，需要补充原因或例子。";
+  if (clean.length < 65) return "基本回答了，但信息还不够具体。";
+  return "回答较完整，可以继续优化法语准确度。";
+}
+
+function localFeedbackScore(turns) {
+  if (!turns.length) return 0;
+  const lengths = turns.map((turn) => String(turn.text || "").trim().length);
+  const averageLength = lengths.reduce((sum, length) => sum + length, 0) / lengths.length;
+  const shortPenalty = lengths.filter((length) => length < 30).length * 4;
+  const coverageBonus = Math.min(18, turns.length);
+  return Math.max(28, Math.min(72, Math.round(34 + coverageBonus + Math.min(24, averageLength / 8) - shortPenalty)));
+}
+
+function localFeedbackStatus(score) {
+  if (score < 45) return "danger";
+  if (score < 65) return "warning";
+  return "good";
+}
+
+function buildLocalQaFeedback(turns) {
+  return turns.map((turn, index) => ({
+    index: index + 1,
+    questionFr: turn.question || "",
+    questionZh: turn.questionZh || findQuestionTranslation(turn.question || ""),
+    answerFr: turn.text || "",
+    answerZh: "AI中文翻译未生成，请以法语原文为准。",
+    verdict: localAnswerVerdict(turn.text),
+    risk: localAnswerStatus(turn.text)
+  }));
+}
+
 function buildFallbackFeedback(error) {
+  const turns = localUserTurns();
+  const score = localFeedbackScore(turns);
+  const shortCount = turns.filter((turn) => String(turn.text || "").trim().length < 30).length;
+  const status = localFeedbackStatus(score);
+
   return {
-    overallScore: 0,
+    overallScore: score,
     riskLevel: "medium",
-    headline: "AI 总结暂时没有生成",
-    summary: `原因：${friendlyError(error)}。本轮问答和录音已经保留，可以先检查逐题记录。`,
+    headline: "AI 总结暂时没有生成，先显示本地临时评估",
+    summary: `原因：${friendlyError(error)}。本轮已记录 ${turns.length} 个回答，下方先按回答长度和完整度给出临时判断；正式法语纠错需重新生成复盘。`,
     scoreCards: [
-      { label: "听懂与应答", score: 0, status: "warning", note: "总结接口失败，暂时无法评分。" },
-      { label: "学习计划连贯性", score: 0, status: "warning", note: "请稍后重新生成或再开始一轮。" },
-      { label: "法语表达", score: 0, status: "warning", note: "逐题回答仍可在下方查看。" },
-      { label: "风险控制", score: 0, status: "warning", note: "本地已停止 Realtime，不会继续消耗实时连接。" }
+      { label: "听懂与应答", score, status, note: shortCount ? `${shortCount} 个回答偏短，可能没有完全展开。` : "多数回答有基本内容。" },
+      { label: "学习计划连贯性", score: Math.max(0, score - 8), status, note: "接口失败时无法深度判断逻辑，只做临时估计。" },
+      { label: "法语表达", score: Math.max(0, score - 10), status: "warning", note: "正式语法纠错需要 AI 复盘成功后生成。" },
+      { label: "风险控制", score: Math.max(0, score - 6), status, note: "逐题风险先按回答过短和表达完整度粗略判断。" }
     ],
     keyFindings: [
       {
         title: "复盘接口请求失败",
-        detail: "这通常是模型名不可用、网络中断、接口超时或 Vercel 函数返回异常造成的。",
+        detail: "这通常是网络中断、接口超时、输出过长或 Vercel 函数异常造成的；本地记录没有丢。",
         status: "warning"
+      },
+      {
+        title: "本轮回答已保留",
+        detail: `已保存 ${turns.length} 个逐题回答。偏短回答 ${shortCount} 个，建议优先补充原因、例子和个人经历。`,
+        status: shortCount ? "warning" : "good"
       }
     ],
-    qaPairs: [],
+    qaPairs: buildLocalQaFeedback(turns),
     languageIssues: [],
     riskyAnswers: [],
     bestAnswers: [],
